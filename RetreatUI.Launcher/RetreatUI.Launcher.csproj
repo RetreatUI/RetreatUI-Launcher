@@ -8,9 +8,10 @@
     <AssemblyName>RetreatUI_Launcher</AssemblyName>
     <RootNamespace>RetreatUI.Launcher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.2.0</Version>
-    <FileVersion>0.2.0.0</FileVersion>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <ApplicationIcon>Assets\RetreatUI_Launcher.ico</ApplicationIcon>
+    <Version>0.2.1</Version>
+    <FileVersion>0.2.1.0</FileVersion>
+    <AssemblyVersion>0.2.1.0</AssemblyVersion>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -18,4 +19,9 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\RetreatUI_Launcher.ico" />
+    <Resource Include="Assets\RetreatUI_Launcher_256.png" />
+  </ItemGroup>
 </Project>
