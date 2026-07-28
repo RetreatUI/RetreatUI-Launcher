@@ -340,7 +340,10 @@ public partial class MainWindow : Window
         try
         {
             _launcherUpdate = await _launcherUpdateService.CheckForUpdateAsync();
-            if (_launcherUpdate is null)
+            if (_launcherUpdate is null
+                || !LauncherUpdateService.IsNewerVersion(
+                    _launcherUpdate.Version,
+                    _launcherUpdateService.CurrentVersion))
             {
                 LauncherUpdateButton.Visibility = Visibility.Collapsed;
                 return;
@@ -597,3 +600,4 @@ public partial class MainWindow : Window
         Error
     }
 }
+

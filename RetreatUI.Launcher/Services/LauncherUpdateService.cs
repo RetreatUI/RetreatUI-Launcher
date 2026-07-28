@@ -6,7 +6,7 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class LauncherUpdateService
 {
-    private const string LatestReleaseUrl = "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher/releases/latest";
+    private const string ReleasesUrl = "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher/releases?per_page=30";
     private readonly HttpClient _httpClient;
 
     public LauncherUpdateService()
@@ -22,39 +22,55 @@ public sealed class LauncherUpdateService
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.3";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.4";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(LatestReleaseUrl, cancellationToken);
+        using HttpResponseMessage response = await _httpClient.GetAsync(ReleasesUrl, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            // The launcher repository may still be private during development.
             return null;
         }
 
         response.EnsureSuccessStatusCode();
         await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        GitHubRelease? release = await JsonSerializer.DeserializeAsync<GitHubRelease>(
+        List<GitHubRelease>? releases = await JsonSerializer.DeserializeAsync<List<GitHubRelease>>(
             stream,
             cancellationToken: cancellationToken);
 
-        if (release is null || release.Draft || release.Prerelease)
+        if (releases is null || releases.Count == 0)
         {
             return null;
         }
 
-        GitHubAsset? asset = release.Assets.FirstOrDefault(candidate =>
-            string.Equals(candidate.Name, "RetreatUI_Launcher.exe", StringComparison.OrdinalIgnoreCase));
-        if (asset is null)
+        LauncherUpdate? bestUpdate = null;
+        foreach (GitHubRelease release in releases)
         {
-            return null;
+            if (release.Draft || release.Prerelease)
+            {
+                continue;
+            }
+
+            GitHubAsset? asset = release.Assets.FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, "RetreatUI_Launcher.exe", StringComparison.OrdinalIgnoreCase));
+            if (asset is null)
+            {
+                continue;
+            }
+
+            string candidateVersion = NormalizeLauncherVersion(release.TagName);
+            if (!IsNewerVersion(candidateVersion, CurrentVersion))
+            {
+                continue;
+            }
+
+            if (bestUpdate is null || IsNewerVersion(candidateVersion, bestUpdate.Version))
+            {
+                bestUpdate = new LauncherUpdate(candidateVersion, release, asset);
+            }
         }
 
-        string latestVersion = NormalizeLauncherVersion(release.TagName);
-        return CompareVersions(latestVersion, CurrentVersion) > 0
-            ? new LauncherUpdate(latestVersion, release, asset)
-            : null;
+        return bestUpdate;
     }
 
     public async Task PrepareUpdateAndRestartAsync(
@@ -62,6 +78,12 @@ public sealed class LauncherUpdateService
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        if (!IsNewerVersion(update.Version, CurrentVersion))
+        {
+            throw new InvalidOperationException(
+                $"Launcher {update.Version} is not newer than the installed launcher {CurrentVersion}.");
+        }
+
         string currentExecutable = Environment.ProcessPath
             ?? throw new InvalidOperationException("The launcher executable path could not be determined.");
 
@@ -130,6 +152,13 @@ public sealed class LauncherUpdateService
         });
     }
 
+    public static bool IsNewerVersion(string candidate, string installed)
+    {
+        Version candidateVersion = ParseVersion(candidate);
+        Version installedVersion = ParseVersion(installed);
+        return candidateVersion > installedVersion;
+    }
+
     private static string EscapePowerShellLiteral(string value) => value.Replace("'", "''");
 
     private static string NormalizeLauncherVersion(string value)
@@ -147,19 +176,11 @@ public sealed class LauncherUpdateService
         return normalized;
     }
 
-    private static int CompareVersions(string left, string right)
-    {
-        Version leftVersion = ParseVersion(left);
-        Version rightVersion = ParseVersion(right);
-        return leftVersion.CompareTo(rightVersion);
-    }
-
     private static Version ParseVersion(string value)
     {
-        string core = value.Split('-', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+        string core = value.Trim().Split('-', 2, StringSplitOptions.RemoveEmptyEntries)[0];
         return Version.TryParse(core, out Version? version) ? version : new Version(0, 0, 0);
     }
 }
 
 public sealed record LauncherUpdate(string Version, GitHubRelease Release, GitHubAsset Asset);
-
