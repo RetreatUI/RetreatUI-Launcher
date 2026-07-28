@@ -4,10 +4,11 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 
 ## Current version
 
-`0.2.0`
+`0.2.1`
 
 ## Features
 
+- Custom RetreatUI application icon and in-launcher branding
 - Stable and Beta update channels
 - Clear switching between Stable, Beta and local test builds
 - Automatic release checks through the RetreatUI GitHub releases feed
@@ -90,7 +91,7 @@ For a normal test build:
 For a launcher release, create and push a tag such as:
 
 ```text
-launcher-v0.2.0
+launcher-v0.2.1
 ```
 
 GitHub Actions will create a GitHub release and attach both the EXE and ZIP. Once the repository is public, installed launchers can detect and install future launcher releases automatically.
