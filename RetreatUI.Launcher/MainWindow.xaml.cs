@@ -11,11 +11,14 @@ public partial class MainWindow : Window
 {
     private readonly SettingsService _settingsService = new();
     private readonly GitHubReleaseService _releaseService = new();
+    private readonly LauncherUpdateService _launcherUpdateService = new();
     private readonly GamePathService _gamePathService = new();
     private readonly AddonInstallerService _installerService = new();
 
     private LauncherSettings _settings = new();
     private GitHubRelease? _latestRelease;
+    private LauncherUpdate? _launcherUpdate;
+    private AddonAction _currentAddonAction = AddonAction.None;
     private bool _isBusy;
     private bool _isInitialized;
 
@@ -27,6 +30,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        LauncherVersionText.Text = $"Launcher v{_launcherUpdateService.CurrentVersion}";
         _settings = await _settingsService.LoadAsync();
 
         if (string.IsNullOrWhiteSpace(_settings.AddOnsPath)
@@ -47,6 +51,7 @@ public partial class MainWindow : Window
 
         UpdatePathDisplay();
         await RefreshAsync();
+        await CheckLauncherUpdateAsync();
     }
 
     private async Task RefreshAsync()
@@ -57,6 +62,7 @@ public partial class MainWindow : Window
         }
 
         SetBusy(true);
+        _currentAddonAction = AddonAction.None;
         SetStatus("Checking for updates...", StatusKind.Neutral);
 
         try
@@ -83,26 +89,7 @@ public partial class MainWindow : Window
             bool validPath = _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
             OpenFolderButton.IsEnabled = validPath;
             LaunchButton.IsEnabled = File.Exists(_settings.GameExecutablePath);
-
-            string installed = InstalledVersionText.Text;
-            if (installed == "Not installed")
-            {
-                UpdateButton.Content = "INSTALL RETREATUI";
-                UpdateButton.IsEnabled = validPath;
-                SetStatus(validPath ? "RetreatUI is ready to install." : "Choose your AddOns folder.", StatusKind.Neutral);
-            }
-            else if (VersionsMatch(installed, latestVersion))
-            {
-                UpdateButton.Content = "RETREATUI IS UP TO DATE";
-                UpdateButton.IsEnabled = false;
-                SetStatus($"RetreatUI {installed} is up to date.", StatusKind.Success);
-            }
-            else
-            {
-                UpdateButton.Content = $"UPDATE TO {latestVersion.ToUpperInvariant()}";
-                UpdateButton.IsEnabled = validPath;
-                SetStatus(validPath ? $"RetreatUI {latestVersion} is available." : "Choose your AddOns folder.", StatusKind.Neutral);
-            }
+            ConfigureAddonAction(InstalledVersionText.Text, latestVersion, validPath);
         }
         catch (HttpRequestException ex)
         {
@@ -124,6 +111,97 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ConfigureAddonAction(string installed, string latestVersion, bool validPath)
+    {
+        if (installed == "Not installed")
+        {
+            SetAddonAction(
+                AddonAction.Install,
+                "INSTALL RETREATUI",
+                validPath,
+                validPath ? "RetreatUI is ready to install." : "Choose your AddOns folder.");
+            return;
+        }
+
+        if (VersionsMatch(installed, latestVersion))
+        {
+            SetAddonAction(
+                AddonAction.None,
+                "RETREATUI IS UP TO DATE",
+                false,
+                $"RetreatUI {installed} is up to date.",
+                StatusKind.Success);
+            return;
+        }
+
+        int coreComparison = CompareCoreVersions(installed, latestVersion);
+        bool installedPrerelease = HasPrereleaseLabel(installed);
+        bool latestPrerelease = _latestRelease?.Prerelease == true || HasPrereleaseLabel(latestVersion);
+
+        if (!_settings.IncludeBeta && installedPrerelease)
+        {
+            if (coreComparison < 0)
+            {
+                SetAddonAction(
+                    AddonAction.Update,
+                    $"UPDATE TO STABLE {latestVersion.ToUpperInvariant()}",
+                    validPath,
+                    validPath ? $"Stable RetreatUI {latestVersion} is available." : "Choose your AddOns folder.");
+            }
+            else
+            {
+                SetAddonAction(
+                    AddonAction.SwitchToStable,
+                    $"SWITCH TO STABLE {latestVersion.ToUpperInvariant()}",
+                    validPath,
+                    validPath
+                        ? $"A test or Beta build is installed. Stable {latestVersion} is selected."
+                        : "Choose your AddOns folder.");
+            }
+            return;
+        }
+
+        if (_settings.IncludeBeta && latestPrerelease && !installedPrerelease && coreComparison <= 0)
+        {
+            SetAddonAction(
+                AddonAction.SwitchToBeta,
+                $"SWITCH TO BETA {latestVersion.ToUpperInvariant()}",
+                validPath,
+                validPath ? $"Beta RetreatUI {latestVersion} is available." : "Choose your AddOns folder.");
+            return;
+        }
+
+        if (coreComparison > 0)
+        {
+            SetAddonAction(
+                AddonAction.None,
+                "INSTALLED VERSION IS NEWER",
+                false,
+                $"RetreatUI {installed} is newer than the latest selected-channel release.",
+                StatusKind.Neutral);
+            return;
+        }
+
+        SetAddonAction(
+            AddonAction.Update,
+            $"UPDATE TO {latestVersion.ToUpperInvariant()}",
+            validPath,
+            validPath ? $"RetreatUI {latestVersion} is available." : "Choose your AddOns folder.");
+    }
+
+    private void SetAddonAction(
+        AddonAction action,
+        string buttonText,
+        bool enabled,
+        string status,
+        StatusKind statusKind = StatusKind.Neutral)
+    {
+        _currentAddonAction = action;
+        UpdateButton.Content = buttonText;
+        UpdateButton.IsEnabled = enabled;
+        SetStatus(status, statusKind);
+    }
+
     private async void UpdateButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isBusy)
@@ -131,7 +209,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_latestRelease is null)
+        if (_latestRelease is null || _currentAddonAction == AddonAction.None)
         {
             await RefreshAsync();
             return;
@@ -159,6 +237,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_currentAddonAction is AddonAction.SwitchToStable or AddonAction.SwitchToBeta)
+        {
+            string channel = _currentAddonAction == AddonAction.SwitchToStable ? "Stable" : "Beta";
+            MessageBoxResult confirmation = MessageBox.Show(
+                this,
+                $"This will replace the currently installed RetreatUI build with {channel} " +
+                $"{NormalizeVersion(_latestRelease.TagName)}. Your current addon folders will be backed up first.",
+                $"Switch to {channel}?",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
         GitHubAsset? asset = GitHubReleaseService.FindRetreatUiAsset(_latestRelease);
         if (asset is null)
         {
@@ -166,6 +260,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        AddonAction completedAction = _currentAddonAction;
+        string latestVersion = NormalizeVersion(_latestRelease.TagName);
         string tempDirectory = Path.Combine(Path.GetTempPath(), "RetreatUI-Launcher");
         Directory.CreateDirectory(tempDirectory);
         string zipPath = Path.Combine(tempDirectory, $"{Guid.NewGuid():N}.zip");
@@ -184,6 +280,7 @@ public partial class MainWindow : Window
             InstallResult result = await _installerService.InstallAsync(
                 zipPath,
                 _settings.AddOnsPath,
+                latestVersion,
                 installationStatus);
 
             if (!result.Success)
@@ -192,30 +289,113 @@ public partial class MainWindow : Window
             }
 
             UpdateInstalledVersion();
+            _currentAddonAction = AddonAction.None;
             UpdateButton.Content = "RETREATUI IS UP TO DATE";
             UpdateButton.IsEnabled = false;
-            SetStatus($"RetreatUI {InstalledVersionText.Text} installed successfully.", StatusKind.Success);
 
-            MessageBox.Show(
-                this,
-                "RetreatUI was updated successfully. You can now launch Project Ascension.",
-                "Update complete",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            (string title, string message, string status) = completedAction switch
+            {
+                AddonAction.Install => (
+                    "Installation complete",
+                    "RetreatUI was installed successfully.",
+                    $"RetreatUI {InstalledVersionText.Text} installed successfully."),
+                AddonAction.SwitchToStable => (
+                    "Channel change complete",
+                    "RetreatUI was switched to the Stable channel successfully.",
+                    $"Stable RetreatUI {InstalledVersionText.Text} installed successfully."),
+                AddonAction.SwitchToBeta => (
+                    "Channel change complete",
+                    "RetreatUI was switched to the Beta channel successfully.",
+                    $"Beta RetreatUI {InstalledVersionText.Text} installed successfully."),
+                _ => (
+                    "Update complete",
+                    "RetreatUI was updated successfully.",
+                    $"RetreatUI {InstalledVersionText.Text} updated successfully.")
+            };
+
+            SetStatus(status, StatusKind.Success);
+            MessageBox.Show(this, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
+            UpdateInstalledVersion();
             SetStatus($"Update failed: {ex.Message}", StatusKind.Error);
             MessageBox.Show(
                 this,
-                $"RetreatUI could not be updated.\n\n{ex.Message}\n\nYour previous addon version was restored when possible.",
-                "Update failed",
+                ex.Message,
+                "RetreatUI installation failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
         finally
         {
             TryDelete(zipPath);
+            DownloadProgress.Visibility = Visibility.Collapsed;
+            SetBusy(false);
+        }
+    }
+
+    private async Task CheckLauncherUpdateAsync()
+    {
+        try
+        {
+            _launcherUpdate = await _launcherUpdateService.CheckForUpdateAsync();
+            if (_launcherUpdate is null)
+            {
+                LauncherUpdateButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            LauncherUpdateButton.Content = $"UPDATE LAUNCHER TO {_launcherUpdate.Version.ToUpperInvariant()}";
+            LauncherUpdateButton.Visibility = Visibility.Visible;
+            LauncherUpdateButton.IsEnabled = true;
+        }
+        catch
+        {
+            // Launcher self-update must never block addon updates.
+            LauncherUpdateButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async void LauncherUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isBusy || _launcherUpdate is null)
+        {
+            return;
+        }
+
+        MessageBoxResult confirmation = MessageBox.Show(
+            this,
+            $"Install RetreatUI Launcher {_launcherUpdate.Version} now? The launcher will restart automatically.",
+            "Update RetreatUI Launcher",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        DownloadProgress.Value = 0;
+        DownloadProgress.Visibility = Visibility.Visible;
+
+        try
+        {
+            SetStatus($"Downloading launcher {_launcherUpdate.Version}...", StatusKind.Neutral);
+            Progress<double> progress = new(value => DownloadProgress.Value = value);
+            await _launcherUpdateService.PrepareUpdateAndRestartAsync(_launcherUpdate, progress);
+            SetStatus("Restarting updated launcher...", StatusKind.Success);
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Launcher update failed: {ex.Message}", StatusKind.Error);
+            MessageBox.Show(
+                this,
+                $"The launcher could not update itself.\n\n{ex.Message}",
+                "Launcher update failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             DownloadProgress.Visibility = Visibility.Collapsed;
             SetBusy(false);
         }
@@ -271,7 +451,11 @@ public partial class MainWindow : Window
         await RefreshAsync();
     }
 
-    private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshAsync();
+        await CheckLauncherUpdateAsync();
+    }
 
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
     {
@@ -325,6 +509,18 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = !busy;
         StableRadio.IsEnabled = !busy;
         BetaRadio.IsEnabled = !busy;
+        OpenFolderButton.IsEnabled = !busy && _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
+        LaunchButton.IsEnabled = !busy && File.Exists(_settings.GameExecutablePath);
+        LauncherUpdateButton.IsEnabled = !busy && _launcherUpdate is not null;
+
+        if (busy)
+        {
+            UpdateButton.IsEnabled = false;
+        }
+        else if (_currentAddonAction != AddonAction.None)
+        {
+            UpdateButton.IsEnabled = _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
+        }
     }
 
     private void SetStatus(string text, StatusKind kind)
@@ -343,6 +539,18 @@ public partial class MainWindow : Window
         return string.Equals(NormalizeVersion(installed), NormalizeVersion(latest), StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasPrereleaseLabel(string version)
+    {
+        return NormalizeVersion(version).Contains('-', StringComparison.Ordinal);
+    }
+
+    private static int CompareCoreVersions(string left, string right)
+    {
+        ParsedAddonVersion leftVersion = ParsedAddonVersion.Parse(left);
+        ParsedAddonVersion rightVersion = ParsedAddonVersion.Parse(right);
+        return leftVersion.Core.CompareTo(rightVersion.Core);
+    }
+
     private static string NormalizeVersion(string version) => version.Trim().TrimStart('v', 'V');
 
     private static void TryDelete(string path)
@@ -358,6 +566,28 @@ public partial class MainWindow : Window
         {
             // Best-effort cleanup.
         }
+    }
+
+    private readonly record struct ParsedAddonVersion(Version Core, string Suffix)
+    {
+        public static ParsedAddonVersion Parse(string value)
+        {
+            string normalized = NormalizeVersion(value);
+            string[] split = normalized.Split('-', 2, StringSplitOptions.RemoveEmptyEntries);
+            Version core = Version.TryParse(split[0], out Version? parsed)
+                ? parsed
+                : new Version(0, 0, 0);
+            return new ParsedAddonVersion(core, split.Length > 1 ? split[1] : string.Empty);
+        }
+    }
+
+    private enum AddonAction
+    {
+        None,
+        Install,
+        Update,
+        SwitchToStable,
+        SwitchToBeta
     }
 
     private enum StatusKind
