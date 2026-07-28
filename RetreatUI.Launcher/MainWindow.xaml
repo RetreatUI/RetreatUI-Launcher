@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="RetreatUI Launcher"
         Width="980"
-        Height="720"
+        Height="740"
         MinWidth="880"
-        MinHeight="640"
+        MinHeight="660"
         Background="{StaticResource BackgroundBrush}"
         Foreground="{StaticResource TextBrush}"
         WindowStartupLocation="CenterScreen">
@@ -37,13 +37,18 @@
                            FontSize="13"
                            FontWeight="SemiBold"
                            Foreground="{StaticResource MutedTextBrush}"/>
+                <TextBlock x:Name="LauncherVersionText"
+                           Text="Launcher"
+                           Margin="1,5,0,0"
+                           FontSize="11.5"
+                           Foreground="{StaticResource MutedTextBrush}"/>
             </StackPanel>
             <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                 <TextBlock Text="Update Channel"
                            HorizontalAlignment="Right"
                            Foreground="{StaticResource MutedTextBrush}"
                            Margin="0,0,0,6"/>
-                <StackPanel Orientation="Horizontal">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <RadioButton x:Name="StableRadio"
                                  Content="Stable"
                                  GroupName="Channel"
@@ -57,6 +62,13 @@
                                  Style="{StaticResource ChannelRadioStyle}"
                                  Checked="ChannelRadio_Checked"/>
                 </StackPanel>
+                <Button x:Name="LauncherUpdateButton"
+                        Content="Update Launcher"
+                        Margin="0,10,0,0"
+                        HorizontalAlignment="Right"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Visibility="Collapsed"
+                        Click="LauncherUpdateButton_Click"/>
             </StackPanel>
         </Grid>
 
