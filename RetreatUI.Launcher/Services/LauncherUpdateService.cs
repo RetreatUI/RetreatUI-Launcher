@@ -22,7 +22,7 @@ public sealed class LauncherUpdateService
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.2";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.3";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
@@ -162,3 +162,4 @@ public sealed class LauncherUpdateService
 }
 
 public sealed record LauncherUpdate(string Version, GitHubRelease Release, GitHubAsset Asset);
+
