@@ -8,7 +8,8 @@
         MinHeight="660"
         Background="{StaticResource BackgroundBrush}"
         Foreground="{StaticResource TextBrush}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Icon="Assets/RetreatUI_Launcher.ico">
     <Grid Background="{StaticResource BackgroundBrush}" Margin="28">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -27,22 +28,42 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Text="RETREATUI"
-                           FontSize="30"
-                           FontWeight="Bold"
-                           Foreground="{StaticResource AccentBrush}"/>
-                <TextBlock Text="ADDON LAUNCHER"
-                           Margin="1,-2,0,0"
-                           FontSize="13"
-                           FontWeight="SemiBold"
-                           Foreground="{StaticResource MutedTextBrush}"/>
-                <TextBlock x:Name="LauncherVersionText"
-                           Text="Launcher"
-                           Margin="1,5,0,0"
-                           FontSize="11.5"
-                           Foreground="{StaticResource MutedTextBrush}"/>
-            </StackPanel>
+            <Grid Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="72"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Width="72"
+                        Height="72"
+                        Background="#090A0C"
+                        BorderBrush="#5C4527"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        SnapsToDevicePixels="True">
+                    <Image Source="Assets/RetreatUI_Launcher_256.png"
+                           Width="68"
+                           Height="68"
+                           Stretch="Uniform"
+                           SnapsToDevicePixels="True"/>
+                </Border>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="RETREATUI"
+                               FontSize="30"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Text="ADDON LAUNCHER"
+                               Margin="1,-2,0,0"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedTextBrush}"/>
+                    <TextBlock x:Name="LauncherVersionText"
+                               Text="Launcher"
+                               Margin="1,5,0,0"
+                               FontSize="11.5"
+                               Foreground="{StaticResource MutedTextBrush}"/>
+                </StackPanel>
+            </Grid>
             <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                 <TextBlock Text="Update Channel"
                            HorizontalAlignment="Right"
