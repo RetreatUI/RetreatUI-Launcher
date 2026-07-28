@@ -6,6 +6,7 @@ namespace RetreatUI.Launcher.Services;
 public sealed class AddonInstallerService
 {
     private static readonly string[] ManagedFolders = { "RetreatUI", "RetreatUI_Classes" };
+    private const string RollbackTestMarker = ".retreatui-launcher-test-rollback";
 
     public bool IsGameRunning()
     {
@@ -35,16 +36,20 @@ public sealed class AddonInstallerService
     public async Task<InstallResult> InstallAsync(
         string zipPath,
         string addOnsPath,
+        string expectedVersion,
         IProgress<string>? status = null,
         CancellationToken cancellationToken = default)
     {
         string workRoot = Path.Combine(Path.GetTempPath(), "RetreatUI-Launcher", Guid.NewGuid().ToString("N"));
         string extractPath = Path.Combine(workRoot, "Extracted");
-        string backupPath = Path.Combine(
+        string backupRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RetreatUI Launcher",
-            "Backups",
-            DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"));
+            "Backups");
+        string backupPath = Path.Combine(backupRoot, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"));
+        bool hadExistingInstallation = ManagedFolders.Any(folder =>
+            Directory.Exists(Path.Combine(addOnsPath, folder)));
+        bool installationStarted = false;
 
         Directory.CreateDirectory(extractPath);
 
@@ -60,47 +65,93 @@ public sealed class AddonInstallerService
 
             ValidateAddonFolder(sourceRoot, "RetreatUI", "RetreatUI.toc");
             ValidateAddonFolder(sourceRoot, "RetreatUI_Classes", "RetreatUI_Classes.toc");
+            ValidateArchiveVersions(sourceRoot, expectedVersion);
 
-            status?.Report("Creating backup...");
-            Directory.CreateDirectory(backupPath);
-            foreach (string folderName in ManagedFolders)
+            if (hadExistingInstallation)
             {
-                string existing = Path.Combine(addOnsPath, folderName);
-                if (Directory.Exists(existing))
-                {
-                    CopyDirectory(existing, Path.Combine(backupPath, folderName), overwrite: true);
-                }
-            }
-
-            status?.Report("Installing RetreatUI...");
-            try
-            {
+                status?.Report("Creating backup...");
+                Directory.CreateDirectory(backupPath);
                 foreach (string folderName in ManagedFolders)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    string destination = Path.Combine(addOnsPath, folderName);
-                    if (Directory.Exists(destination))
+                    string existing = Path.Combine(addOnsPath, folderName);
+                    if (Directory.Exists(existing))
                     {
-                        Directory.Delete(destination, recursive: true);
+                        CopyDirectory(existing, Path.Combine(backupPath, folderName), overwrite: true);
                     }
-
-                    CopyDirectory(Path.Combine(sourceRoot, folderName), destination, overwrite: true);
                 }
             }
-            catch
+
+            try
             {
-                status?.Report("Installation failed. Restoring backup...");
-                RestoreBackup(addOnsPath, backupPath);
-                throw;
+                installationStarted = true;
+                status?.Report(hadExistingInstallation ? "Installing update..." : "Installing RetreatUI...");
+
+                for (int index = 0; index < ManagedFolders.Length; index++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    string folderName = ManagedFolders[index];
+                    string destination = Path.Combine(addOnsPath, folderName);
+                    DeleteDirectory(destination);
+                    CopyDirectory(Path.Combine(sourceRoot, folderName), destination, overwrite: true);
+
+                    // One-shot development hook used to verify rollback before the public release.
+                    string rollbackMarker = Path.Combine(addOnsPath, RollbackTestMarker);
+                    if (index == 0 && File.Exists(rollbackMarker))
+                    {
+                        File.Delete(rollbackMarker);
+                        throw new IOException("Rollback test requested.");
+                    }
+                }
+
+                status?.Report("Verifying installation...");
+                ValidateInstalledCopy(sourceRoot, addOnsPath, expectedVersion);
+            }
+            catch (Exception installError)
+            {
+                status?.Report("Installation failed. Restoring previous version...");
+                try
+                {
+                    RestoreBackup(addOnsPath, hadExistingInstallation ? backupPath : null);
+                }
+                catch (Exception restoreError)
+                {
+                    throw new IOException(
+                        $"The update failed and the previous installation could not be fully restored. " +
+                        $"Update error: {installError.Message} Restore error: {restoreError.Message}",
+                        restoreError);
+                }
+
+                string recoveryMessage = hadExistingInstallation
+                    ? "The previous RetreatUI installation was restored successfully."
+                    : "The partial installation was removed successfully.";
+                throw new IOException($"The installation failed. {recoveryMessage} Details: {installError.Message}", installError);
             }
 
-            status?.Report("Update installed successfully.");
-            CleanupOldBackups(Path.GetDirectoryName(backupPath)!, keep: 5);
-            return new InstallResult(true, backupPath, null);
+            status?.Report(hadExistingInstallation
+                ? "Update installed successfully."
+                : "RetreatUI installed successfully.");
+
+            if (hadExistingInstallation)
+            {
+                CleanupOldBackups(backupRoot, keep: 5);
+            }
+
+            await Task.CompletedTask;
+            return new InstallResult(
+                true,
+                hadExistingInstallation ? backupPath : null,
+                null,
+                hadExistingInstallation,
+                false);
         }
         catch (Exception ex)
         {
-            return new InstallResult(false, Directory.Exists(backupPath) ? backupPath : null, ex.Message);
+            return new InstallResult(
+                false,
+                hadExistingInstallation && Directory.Exists(backupPath) ? backupPath : null,
+                ex.Message,
+                hadExistingInstallation,
+                installationStarted);
         }
         finally
         {
@@ -136,18 +187,107 @@ public sealed class AddonInstallerService
         }
     }
 
-    private static void RestoreBackup(string addOnsPath, string backupPath)
+    private static void ValidateArchiveVersions(string sourceRoot, string expectedVersion)
+    {
+        string retreatVersion = ReadTocVersion(Path.Combine(sourceRoot, "RetreatUI", "RetreatUI.toc"));
+        string classesVersion = ReadTocVersion(Path.Combine(sourceRoot, "RetreatUI_Classes", "RetreatUI_Classes.toc"));
+        string expected = NormalizeVersion(expectedVersion);
+
+        if (!string.Equals(retreatVersion, classesVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"The two addon folders use different versions ({retreatVersion} and {classesVersion}).");
+        }
+
+        if (!string.Equals(retreatVersion, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"The downloaded addon version is {retreatVersion}, but release {expected} was expected.");
+        }
+    }
+
+    private static void ValidateInstalledCopy(string sourceRoot, string addOnsPath, string expectedVersion)
     {
         foreach (string folderName in ManagedFolders)
         {
+            string source = Path.Combine(sourceRoot, folderName);
             string destination = Path.Combine(addOnsPath, folderName);
-            TryDelete(destination);
+            ValidateDirectoryCopy(source, destination);
+        }
 
+        ValidateArchiveVersions(addOnsPath, expectedVersion);
+    }
+
+    private static void ValidateDirectoryCopy(string source, string destination)
+    {
+        if (!Directory.Exists(destination))
+        {
+            throw new IOException($"The installed folder is missing: {Path.GetFileName(destination)}");
+        }
+
+        string[] sourceFiles = Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories).ToArray();
+        string[] destinationFiles = Directory.EnumerateFiles(destination, "*", SearchOption.AllDirectories).ToArray();
+        if (sourceFiles.Length != destinationFiles.Length)
+        {
+            throw new IOException(
+                $"File verification failed for {Path.GetFileName(destination)} " +
+                $"({destinationFiles.Length} of {sourceFiles.Length} files installed).");
+        }
+
+        foreach (string sourceFile in sourceFiles)
+        {
+            string relative = Path.GetRelativePath(source, sourceFile);
+            string destinationFile = Path.Combine(destination, relative);
+            if (!File.Exists(destinationFile)
+                || new FileInfo(sourceFile).Length != new FileInfo(destinationFile).Length)
+            {
+                throw new IOException($"File verification failed: {Path.GetFileName(destination)}\\{relative}");
+            }
+        }
+    }
+
+    private static string ReadTocVersion(string tocPath)
+    {
+        foreach (string line in File.ReadLines(tocPath))
+        {
+            if (line.StartsWith("## Version:", StringComparison.OrdinalIgnoreCase))
+            {
+                return NormalizeVersion(line[(line.IndexOf(':') + 1)..]);
+            }
+        }
+
+        throw new InvalidDataException($"No version was found in {Path.GetFileName(tocPath)}.");
+    }
+
+    private static string NormalizeVersion(string version) => version.Trim().TrimStart('v', 'V');
+
+    private static void RestoreBackup(string addOnsPath, string? backupPath)
+    {
+        foreach (string folderName in ManagedFolders)
+        {
+            DeleteDirectory(Path.Combine(addOnsPath, folderName));
+        }
+
+        if (string.IsNullOrWhiteSpace(backupPath) || !Directory.Exists(backupPath))
+        {
+            return;
+        }
+
+        foreach (string folderName in ManagedFolders)
+        {
             string source = Path.Combine(backupPath, folderName);
             if (Directory.Exists(source))
             {
-                CopyDirectory(source, destination, overwrite: true);
+                CopyDirectory(source, Path.Combine(addOnsPath, folderName), overwrite: true);
             }
+        }
+    }
+
+    private static void DeleteDirectory(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
         }
     }
 
@@ -172,6 +312,11 @@ public sealed class AddonInstallerService
     {
         try
         {
+            if (!Directory.Exists(backupRoot))
+            {
+                return;
+            }
+
             DirectoryInfo[] backups = new DirectoryInfo(backupRoot)
                 .EnumerateDirectories()
                 .OrderByDescending(directory => directory.CreationTimeUtc)
@@ -208,4 +353,9 @@ public sealed class AddonInstallerService
     }
 }
 
-public sealed record InstallResult(bool Success, string? BackupPath, string? ErrorMessage);
+public sealed record InstallResult(
+    bool Success,
+    string? BackupPath,
+    string? ErrorMessage,
+    bool HadExistingInstallation,
+    bool InstallationStarted);
