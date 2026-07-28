@@ -22,7 +22,7 @@ public sealed class LauncherUpdateService
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.0";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.1";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
