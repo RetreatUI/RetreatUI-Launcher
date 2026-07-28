@@ -8,8 +8,7 @@
         MinHeight="660"
         Background="{StaticResource BackgroundBrush}"
         Foreground="{StaticResource TextBrush}"
-        WindowStartupLocation="CenterScreen"
-        Icon="Assets/RetreatUI_Launcher.ico">
+        WindowStartupLocation="CenterScreen">
     <Grid Background="{StaticResource BackgroundBrush}" Margin="28">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

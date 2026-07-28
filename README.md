@@ -4,7 +4,7 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 
 ## Current version
 
-`0.2.1`
+`0.2.2`
 
 ## Features
 
@@ -91,7 +91,7 @@ For a normal test build:
 For a launcher release, create and push a tag such as:
 
 ```text
-launcher-v0.2.1
+launcher-v0.2.2
 ```
 
 GitHub Actions will create a GitHub release and attach both the EXE and ZIP. Once the repository is public, installed launchers can detect and install future launcher releases automatically.
