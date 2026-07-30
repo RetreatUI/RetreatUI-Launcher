@@ -4,7 +4,7 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 
 ## Current version
 
-`0.2.5`
+`0.2.6`
 
 ## Features
 
@@ -25,7 +25,8 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 - Never touches WoW SavedVariables
 - Opens the AddOns folder
 - Launches Project Ascension when the executable is detected
-- Automatic launcher self-update support through launcher GitHub releases
+- Automatic launcher self-updates from the public binary-only release repository
+- SHA-256 verification and executable rollback for launcher updates
 
 ## Managed folders
 
@@ -57,6 +58,24 @@ Beta releases must be marked as pre-releases and may use tags such as:
 ```text
 v1.0.12-beta.1
 ```
+
+## Launcher release channel
+
+The source code remains in this private repository. Compiled launcher releases are published publicly in:
+
+```text
+RetreatUI/RetreatUI-Launcher-Releases
+```
+
+Every public launcher release must contain:
+
+```text
+RetreatUI_Launcher.exe
+RetreatUI_Launcher.exe.sha256
+RetreatUI_Launcher_win-x64.zip
+```
+
+Installed launchers from v0.2.6 onward check that public repository and can replace themselves after verifying the SHA-256 checksum.
 
 ## Building locally
 
@@ -92,10 +111,10 @@ For a normal test build:
 For a launcher release, create and push a tag such as:
 
 ```text
-launcher-v0.2.5
+launcher-v0.2.6
 ```
 
-GitHub Actions will create a GitHub release and attach both the EXE and ZIP. Once the repository is public, installed launchers can detect and install future launcher releases automatically.
+The built EXE, checksum and ZIP are then transferred to the public launcher release repository.
 
 ## Data locations
 
@@ -114,6 +133,3 @@ Backups:
 ## License
 
 This project is proprietary. All rights reserved.
-
-
-
