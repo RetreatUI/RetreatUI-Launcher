@@ -9,6 +9,8 @@ namespace RetreatUI.Launcher;
 
 public partial class MainWindow : Window
 {
+    private const string SupportUrl = "https://ko-fi.com/retreatui";
+
     private readonly SettingsService _settingsService = new();
     private readonly GitHubReleaseService _releaseService = new();
     private readonly LauncherUpdateService _launcherUpdateService = new();
@@ -21,6 +23,8 @@ public partial class MainWindow : Window
     private AddonAction _currentAddonAction = AddonAction.None;
     private bool _isBusy;
     private bool _isInitialized;
+    private bool _automaticLauncherUpdateInProgress;
+    private bool _automaticAddonUpdateInProgress;
 
     public MainWindow()
     {
@@ -50,8 +54,14 @@ public partial class MainWindow : Window
         _isInitialized = true;
 
         UpdatePathDisplay();
-        await RefreshAsync();
         await CheckLauncherUpdateAsync();
+        if (TryInstallLauncherUpdateAutomatically())
+        {
+            return;
+        }
+
+        await RefreshAsync();
+        TryInstallAddonUpdateAutomatically();
     }
 
     private async Task RefreshAsync()
@@ -339,7 +349,10 @@ public partial class MainWindow : Window
             };
 
             SetStatus(status, StatusKind.Success);
-            MessageBox.Show(this, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!_automaticAddonUpdateInProgress)
+            {
+                MessageBox.Show(this, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
         catch (Exception ex)
         {
@@ -357,7 +370,47 @@ public partial class MainWindow : Window
             TryDelete(zipPath);
             DownloadProgress.Visibility = Visibility.Collapsed;
             SetBusy(false);
+            _automaticAddonUpdateInProgress = false;
         }
+    }
+
+    private bool TryInstallLauncherUpdateAutomatically()
+    {
+        if (_launcherUpdate is null
+            || _isBusy
+            || !LauncherUpdateService.IsNewerVersion(
+                _launcherUpdate.Version,
+                _launcherUpdateService.CurrentVersion))
+        {
+            return false;
+        }
+
+        _automaticLauncherUpdateInProgress = true;
+        LauncherUpdateButton_Click(LauncherUpdateButton, new RoutedEventArgs());
+        return true;
+    }
+
+    private void TryInstallAddonUpdateAutomatically()
+    {
+        if (_currentAddonAction != AddonAction.Update
+            || _latestRelease is null
+            || _isBusy
+            || !_gamePathService.HasValidAddOnsPath(_settings.AddOnsPath))
+        {
+            return;
+        }
+
+        string latestVersion = NormalizeVersion(_latestRelease.TagName);
+        if (_installerService.IsGameRunning())
+        {
+            SetStatus(
+                $"RetreatUI {latestVersion} is ready. Close Project Ascension and press Refresh to install it automatically.",
+                StatusKind.Neutral);
+            return;
+        }
+
+        _automaticAddonUpdateInProgress = true;
+        UpdateButton_Click(UpdateButton, new RoutedEventArgs());
     }
 
     private async Task CheckLauncherUpdateAsync()
@@ -392,15 +445,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        MessageBoxResult confirmation = MessageBox.Show(
-            this,
-            $"Install RetreatUI Launcher {_launcherUpdate.Version} now? The launcher will restart automatically.",
-            "Update RetreatUI Launcher",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-        if (confirmation != MessageBoxResult.Yes)
+        if (!_automaticLauncherUpdateInProgress)
         {
-            return;
+            MessageBoxResult confirmation = MessageBox.Show(
+                this,
+                $"Install RetreatUI Launcher {_launcherUpdate.Version} now? The launcher will restart automatically.",
+                "Update RetreatUI Launcher",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
         }
 
         SetBusy(true);
@@ -426,6 +482,14 @@ public partial class MainWindow : Window
                 MessageBoxImage.Error);
             DownloadProgress.Visibility = Visibility.Collapsed;
             SetBusy(false);
+
+            bool wasAutomatic = _automaticLauncherUpdateInProgress;
+            _automaticLauncherUpdateInProgress = false;
+            if (wasAutomatic)
+            {
+                await RefreshAsync();
+                TryInstallAddonUpdateAutomatically();
+            }
         }
     }
 
@@ -481,8 +545,35 @@ public partial class MainWindow : Window
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        await RefreshAsync();
         await CheckLauncherUpdateAsync();
+        if (TryInstallLauncherUpdateAutomatically())
+        {
+            return;
+        }
+
+        await RefreshAsync();
+        TryInstallAddonUpdateAutomatically();
+    }
+
+    private void SupportButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = SupportUrl,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"The support page could not be opened.\n\n{ex.Message}",
+                "Support RetreatUI",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
     }
 
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)

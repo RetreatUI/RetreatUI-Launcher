@@ -22,7 +22,7 @@ public sealed class GitHubReleaseService
             Timeout = TimeSpan.FromSeconds(30)
         };
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.2.5"));
+            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.2.8"));
         _httpClient.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
     }

@@ -4,7 +4,7 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 
 ## Current version
 
-`0.2.6`
+`0.2.8`
 
 ## Features
 
@@ -18,6 +18,8 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 - Installed and latest version display
 - Release notes inside the launcher
 - One-click RetreatUI installation and updating
+- Automatic RetreatUI updates on the selected channel when Project Ascension is closed
+- A discreet Support RetreatUI button linking to the official Ko-fi page
 - Validates the downloaded ZIP, addon versions and installed file copy
 - Automatic backup before replacing addon files
 - Automatic rollback when installation or verification fails
@@ -111,7 +113,7 @@ For a normal test build:
 For a launcher release, create and push a tag such as:
 
 ```text
-launcher-v0.2.6
+launcher-v0.2.8
 ```
 
 The built EXE, checksum and ZIP are then transferred to the public launcher release repository.
