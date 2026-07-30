@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 using RetreatUI.Launcher.Models;
 
@@ -6,7 +9,11 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class LauncherUpdateService
 {
-    private const string ReleasesUrl = "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher/releases?per_page=30";
+    private const string ReleasesBaseUrl =
+        "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher-Releases/releases";
+    private const string ExecutableAssetName = "RetreatUI_Launcher.exe";
+    private const string ChecksumAssetName = "RetreatUI_Launcher.exe.sha256";
+
     private readonly HttpClient _httpClient;
 
     public LauncherUpdateService()
@@ -19,14 +26,22 @@ public sealed class LauncherUpdateService
             new ProductInfoHeaderValue("RetreatUI-Launcher", CurrentVersion));
         _httpClient.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        _httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
+        {
+            NoCache = true,
+            NoStore = true
+        };
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.5";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.6";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(ReleasesUrl, cancellationToken);
+        string releasesUrl =
+            $"{ReleasesBaseUrl}?per_page=30&retreatui_cache_bust={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+
+        using HttpResponseMessage response = await _httpClient.GetAsync(releasesUrl, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return null;
@@ -51,9 +66,12 @@ public sealed class LauncherUpdateService
                 continue;
             }
 
-            GitHubAsset? asset = release.Assets.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, "RetreatUI_Launcher.exe", StringComparison.OrdinalIgnoreCase));
-            if (asset is null)
+            GitHubAsset? executableAsset = release.Assets.FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, ExecutableAssetName, StringComparison.OrdinalIgnoreCase));
+            GitHubAsset? checksumAsset = release.Assets.FirstOrDefault(candidate =>
+                string.Equals(candidate.Name, ChecksumAssetName, StringComparison.OrdinalIgnoreCase));
+
+            if (executableAsset is null || checksumAsset is null)
             {
                 continue;
             }
@@ -66,7 +84,11 @@ public sealed class LauncherUpdateService
 
             if (bestUpdate is null || IsNewerVersion(candidateVersion, bestUpdate.Version))
             {
-                bestUpdate = new LauncherUpdate(candidateVersion, release, asset);
+                bestUpdate = new LauncherUpdate(
+                    candidateVersion,
+                    release,
+                    executableAsset,
+                    checksumAsset);
             }
         }
 
@@ -86,6 +108,8 @@ public sealed class LauncherUpdateService
 
         string currentExecutable = Environment.ProcessPath
             ?? throw new InvalidOperationException("The launcher executable path could not be determined.");
+        string currentDirectory = Path.GetDirectoryName(currentExecutable)
+            ?? throw new InvalidOperationException("The launcher directory could not be determined.");
 
         string updateRoot = Path.Combine(
             Path.GetTempPath(),
@@ -94,52 +118,75 @@ public sealed class LauncherUpdateService
             Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(updateRoot);
 
-        string downloadedExecutable = Path.Combine(updateRoot, "RetreatUI_Launcher.exe");
+        string downloadedExecutable = Path.Combine(updateRoot, ExecutableAssetName);
+        string downloadedChecksum = Path.Combine(updateRoot, ChecksumAssetName);
         string scriptPath = Path.Combine(updateRoot, "apply-update.ps1");
+        string backupExecutable = Path.Combine(currentDirectory, "RetreatUI_Launcher.previous.exe");
 
-        using (HttpResponseMessage response = await _httpClient.GetAsync(
-                   update.Asset.BrowserDownloadUrl,
-                   HttpCompletionOption.ResponseHeadersRead,
-                   cancellationToken))
+        await DownloadFileAsync(
+            update.Asset.BrowserDownloadUrl,
+            downloadedExecutable,
+            progress,
+            cancellationToken);
+        await DownloadFileAsync(
+            update.ChecksumAsset.BrowserDownloadUrl,
+            downloadedChecksum,
+            null,
+            cancellationToken);
+
+        string expectedHash = ParseSha256(await File.ReadAllTextAsync(downloadedChecksum, cancellationToken));
+        string actualHash = await ComputeSha256Async(downloadedExecutable, cancellationToken);
+        if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
         {
-            response.EnsureSuccessStatusCode();
-            long? total = response.Content.Headers.ContentLength;
-            await using Stream input = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using FileStream output = new(
-                downloadedExecutable,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None);
+            throw new InvalidOperationException(
+                "The downloaded launcher failed SHA-256 verification. The current launcher was not changed.");
+        }
 
-            byte[] buffer = new byte[81920];
-            long received = 0;
-            int read;
-            while ((read = await input.ReadAsync(buffer, cancellationToken)) > 0)
-            {
-                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                received += read;
-                if (total is > 0)
-                {
-                    progress?.Report(received * 100d / total.Value);
-                }
-            }
+        FileVersionInfo downloadedVersionInfo = FileVersionInfo.GetVersionInfo(downloadedExecutable);
+        string downloadedVersion = downloadedVersionInfo.FileVersion ?? string.Empty;
+        if (!VersionsMatch(update.Version, downloadedVersion))
+        {
+            throw new InvalidOperationException(
+                $"The downloaded launcher reports version {downloadedVersion}, but {update.Version} was expected.");
         }
 
         string escapedDownloaded = EscapePowerShellLiteral(downloadedExecutable);
         string escapedCurrent = EscapePowerShellLiteral(currentExecutable);
+        string escapedBackup = EscapePowerShellLiteral(backupExecutable);
         string escapedRoot = EscapePowerShellLiteral(updateRoot);
         int processId = Environment.ProcessId;
 
         string script = $$"""
             $ErrorActionPreference = 'Stop'
             $processIdToWaitFor = {{processId}}
+            $downloaded = '{{escapedDownloaded}}'
+            $current = '{{escapedCurrent}}'
+            $backup = '{{escapedBackup}}'
+            $updateRoot = '{{escapedRoot}}'
+
             while (Get-Process -Id $processIdToWaitFor -ErrorAction SilentlyContinue) {
                 Start-Sleep -Milliseconds 300
             }
-            Copy-Item -LiteralPath '{{escapedDownloaded}}' -Destination '{{escapedCurrent}}' -Force
-            Start-Process -FilePath '{{escapedCurrent}}'
-            Start-Sleep -Milliseconds 300
-            Remove-Item -LiteralPath '{{escapedRoot}}' -Recurse -Force -ErrorAction SilentlyContinue
+
+            try {
+                Copy-Item -LiteralPath $current -Destination $backup -Force
+                Copy-Item -LiteralPath $downloaded -Destination $current -Force
+                $newProcess = Start-Process -FilePath $current -PassThru
+                Start-Sleep -Seconds 2
+                if ($newProcess.HasExited) {
+                    throw 'The updated launcher closed immediately after startup.'
+                }
+                Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                if (Test-Path -LiteralPath $backup) {
+                    Copy-Item -LiteralPath $backup -Destination $current -Force
+                    Start-Process -FilePath $current
+                }
+            }
+            finally {
+                Remove-Item -LiteralPath $updateRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
             """;
         await File.WriteAllTextAsync(scriptPath, script, cancellationToken);
 
@@ -157,6 +204,75 @@ public sealed class LauncherUpdateService
         Version candidateVersion = ParseVersion(candidate);
         Version installedVersion = ParseVersion(installed);
         return candidateVersion > installedVersion;
+    }
+
+    private async Task DownloadFileAsync(
+        string url,
+        string destination,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        using HttpResponseMessage response = await _httpClient.GetAsync(
+            url,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        long? total = response.Content.Headers.ContentLength;
+        await using Stream input = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using FileStream output = new(
+            destination,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None);
+
+        byte[] buffer = new byte[81920];
+        long received = 0;
+        int read;
+        while ((read = await input.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            received += read;
+            if (total is > 0)
+            {
+                progress?.Report(received * 100d / total.Value);
+            }
+        }
+    }
+
+    private static async Task<string> ComputeSha256Async(
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        await using FileStream stream = new(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            81920,
+            useAsync: true);
+        byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string ParseSha256(string value)
+    {
+        string hash = value.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)[0];
+        if (hash.Length != 64 || !hash.All(Uri.IsHexDigit))
+        {
+            throw new InvalidOperationException("The launcher checksum file is invalid.");
+        }
+
+        return hash;
+    }
+
+    private static bool VersionsMatch(string expected, string actual)
+    {
+        Version expectedVersion = ParseVersion(expected);
+        Version actualVersion = ParseVersion(actual);
+        return expectedVersion.Major == actualVersion.Major
+            && expectedVersion.Minor == actualVersion.Minor
+            && expectedVersion.Build == actualVersion.Build;
     }
 
     private static string EscapePowerShellLiteral(string value) => value.Replace("'", "''");
@@ -183,5 +299,8 @@ public sealed class LauncherUpdateService
     }
 }
 
-public sealed record LauncherUpdate(string Version, GitHubRelease Release, GitHubAsset Asset);
-
+public sealed record LauncherUpdate(
+    string Version,
+    GitHubRelease Release,
+    GitHubAsset Asset,
+    GitHubAsset ChecksumAsset);
