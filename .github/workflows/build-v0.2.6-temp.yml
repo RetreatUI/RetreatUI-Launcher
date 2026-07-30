@@ -1,0 +1,58 @@
+name: Validate RetreatUI Launcher v0.2.6
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore RetreatUI.Launcher.sln
+
+      - name: Build
+        run: dotnet build RetreatUI.Launcher.sln --configuration Release --no-restore
+
+      - name: Publish single EXE
+        run: >-
+          dotnet publish RetreatUI.Launcher/RetreatUI.Launcher.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          --output publish
+
+      - name: Validate version and create assets
+        shell: pwsh
+        run: |
+          $exe = "publish/RetreatUI_Launcher.exe"
+          if (!(Test-Path -LiteralPath $exe)) { throw "Launcher EXE was not created." }
+          $version = (Get-Item -LiteralPath $exe).VersionInfo.FileVersion
+          if (!$version.StartsWith("0.2.6")) { throw "Unexpected launcher version: $version" }
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath "publish/RetreatUI_Launcher.exe.sha256" -Encoding ascii
+          Compress-Archive -Path $exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetreatUI-Launcher-v0.2.6
+          path: |
+            publish/RetreatUI_Launcher.exe
+            publish/RetreatUI_Launcher.exe.sha256
+            RetreatUI_Launcher_win-x64.zip
+          if-no-files-found: error
