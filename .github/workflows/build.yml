@@ -35,9 +35,13 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           --output publish
 
-      - name: Create ZIP
+      - name: Create checksum and ZIP
         shell: pwsh
-        run: Compress-Archive -Path publish/RetreatUI_Launcher.exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
+        run: |
+          $exe = "publish/RetreatUI_Launcher.exe"
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath "publish/RetreatUI_Launcher.exe.sha256" -Encoding ascii
+          Compress-Archive -Path $exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -45,6 +49,7 @@ jobs:
           name: RetreatUI-Launcher-win-x64
           path: |
             publish/RetreatUI_Launcher.exe
+            publish/RetreatUI_Launcher.exe.sha256
             RetreatUI_Launcher_win-x64.zip
 
       - name: Publish GitHub release asset
@@ -53,5 +58,6 @@ jobs:
         with:
           files: |
             publish/RetreatUI_Launcher.exe
+            publish/RetreatUI_Launcher.exe.sha256
             RetreatUI_Launcher_win-x64.zip
           generate_release_notes: true
