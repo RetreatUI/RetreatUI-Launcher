@@ -1,0 +1,150 @@
+name: Build RetreatUI Launcher v0.2.8
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-retreatui-launcher-v0.2.8
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event.pull_request.head.ref == 'release/launcher-v0.2.8'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Apply v0.2.8 source changes
+        run: python .release-v0.2.8/patch.py
+
+      - name: Validate v0.2.8 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $xaml = Get-Content 'RetreatUI.Launcher/MainWindow.xaml' -Raw
+          $window = Get-Content 'RetreatUI.Launcher/MainWindow.xaml.cs' -Raw
+          $project = Get-Content 'RetreatUI.Launcher/RetreatUI.Launcher.csproj' -Raw
+          $launcherUpdate = Get-Content 'RetreatUI.Launcher/Services/LauncherUpdateService.cs' -Raw
+
+          if (-not $xaml.Contains('Content="Support RetreatUI"')) { throw 'Support button is missing.' }
+          if (-not $window.Contains('https://ko-fi.com/retreatui')) { throw 'Ko-fi URL is missing.' }
+          if (-not $window.Contains('TryInstallLauncherUpdateAutomatically')) { throw 'Automatic launcher update is missing.' }
+          if (-not $window.Contains('TryInstallAddonUpdateAutomatically')) { throw 'Automatic addon update is missing.' }
+          if (-not $window.Contains('_currentAddonAction != AddonAction.Update')) { throw 'Manual install/channel protection is missing.' }
+          if (-not $window.Contains('_installerService.IsGameRunning()')) { throw 'Running-game protection is missing.' }
+          if (-not $project.Contains('<Version>0.2.8</Version>')) { throw 'Project version is incorrect.' }
+          if (-not $launcherUpdate.Contains('?? "0.2.8";')) { throw 'Runtime version fallback is incorrect.' }
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore RetreatUI.Launcher.sln
+
+      - name: Build launcher
+        run: dotnet build RetreatUI.Launcher.sln --configuration Release --no-restore
+
+      - name: Publish single EXE
+        run: >-
+          dotnet publish RetreatUI.Launcher/RetreatUI.Launcher.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          --output publish
+
+      - name: Verify launcher startup and support button
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $executable = (Resolve-Path 'publish/RetreatUI_Launcher.exe').Path
+          $version = (Get-Item $executable).VersionInfo.FileVersion
+          if (-not $version.StartsWith('0.2.8')) {
+            throw "Published launcher reports file version $version."
+          }
+
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          $process = Start-Process -FilePath $executable -PassThru
+          try {
+            Start-Sleep -Seconds 10
+            $process.Refresh()
+            if ($process.HasExited) {
+              throw "Launcher exited during startup with code $($process.ExitCode)."
+            }
+
+            $root = [System.Windows.Automation.AutomationElement]::RootElement
+            $processCondition = New-Object System.Windows.Automation.PropertyCondition(
+              [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+              $process.Id)
+            $window = $root.FindFirst(
+              [System.Windows.Automation.TreeScope]::Children,
+              $processCondition)
+            if ($null -eq $window) {
+              throw 'Launcher window was not found.'
+            }
+
+            $nameCondition = New-Object System.Windows.Automation.PropertyCondition(
+              [System.Windows.Automation.AutomationElement]::NameProperty,
+              'Support RetreatUI')
+            $supportButton = $window.FindFirst(
+              [System.Windows.Automation.TreeScope]::Descendants,
+              $nameCondition)
+            if ($null -eq $supportButton) {
+              throw 'Support RetreatUI button was not found through UI Automation.'
+            }
+          }
+          finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+
+      - name: Create checksum and ZIP
+        shell: pwsh
+        run: |
+          $exe = 'publish/RetreatUI_Launcher.exe'
+          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath 'publish/RetreatUI_Launcher.exe.sha256' -Encoding ascii
+          Compress-Archive -Path $exe -DestinationPath 'RetreatUI_Launcher_win-x64.zip' -Force
+
+      - name: Commit v0.2.8 source to main
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add `
+            RetreatUI.Launcher/MainWindow.xaml `
+            RetreatUI.Launcher/MainWindow.xaml.cs `
+            RetreatUI.Launcher/RetreatUI.Launcher.csproj `
+            RetreatUI.Launcher/Services/GitHubReleaseService.cs `
+            RetreatUI.Launcher/Services/LauncherUpdateService.cs `
+            README.md
+          git rm '.github/workflows/publish-v0.2.8.yml'
+          git rm -r '.release-v0.2.8'
+          git commit -m 'Add automatic updates and Ko-fi support button in launcher v0.2.8'
+          git push origin HEAD:main
+
+      - name: Upload verified launcher artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetreatUI-Launcher-v0.2.8-win-x64
+          path: |
+            publish/RetreatUI_Launcher.exe
+            publish/RetreatUI_Launcher.exe.sha256
+            RetreatUI_Launcher_win-x64.zip
+          if-no-files-found: error
