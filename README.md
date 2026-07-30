@@ -4,7 +4,7 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 
 ## Current version
 
-`0.2.4`
+`0.2.5`
 
 ## Features
 
@@ -12,6 +12,7 @@ Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azer
 - Stable and Beta update channels
 - Clear switching between Stable, Beta and local test builds
 - Automatic release checks through the RetreatUI GitHub releases feed
+- Full Stable/Beta semantic version ordering with hard addon downgrade protection
 - Automatic Project Ascension AddOns folder detection
 - Manual folder selection as a fallback
 - Installed and latest version display
@@ -91,7 +92,7 @@ For a normal test build:
 For a launcher release, create and push a tag such as:
 
 ```text
-launcher-v0.2.4
+launcher-v0.2.5
 ```
 
 GitHub Actions will create a GitHub release and attach both the EXE and ZIP. Once the repository is public, installed launchers can detect and install future launcher releases automatically.
@@ -113,5 +114,6 @@ Backups:
 ## License
 
 This project is proprietary. All rights reserved.
+
 
 

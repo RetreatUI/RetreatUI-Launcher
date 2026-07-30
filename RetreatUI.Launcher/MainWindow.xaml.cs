@@ -135,6 +135,7 @@ public partial class MainWindow : Window
         }
 
         int coreComparison = CompareCoreVersions(installed, latestVersion);
+        int fullComparison = AddonVersion.Compare(installed, latestVersion);
         bool installedPrerelease = HasPrereleaseLabel(installed);
         bool latestPrerelease = _latestRelease?.Prerelease == true || HasPrereleaseLabel(latestVersion);
 
@@ -171,7 +172,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (coreComparison > 0)
+        if (fullComparison == 0)
+        {
+            SetAddonAction(
+                AddonAction.None,
+                "RETREATUI IS UP TO DATE",
+                false,
+                $"RetreatUI {installed} is up to date.",
+                StatusKind.Success);
+            return;
+        }
+
+        if (fullComparison > 0)
         {
             SetAddonAction(
                 AddonAction.None,
@@ -262,6 +274,19 @@ public partial class MainWindow : Window
 
         AddonAction completedAction = _currentAddonAction;
         string latestVersion = NormalizeVersion(_latestRelease.TagName);
+
+        if (_currentAddonAction == AddonAction.Update
+            && AddonVersion.Compare(latestVersion, InstalledVersionText.Text) <= 0)
+        {
+            _currentAddonAction = AddonAction.None;
+            UpdateButton.Content = "INSTALLED VERSION IS NEWER";
+            UpdateButton.IsEnabled = false;
+            SetStatus(
+                $"RetreatUI {InstalledVersionText.Text} is newer than {latestVersion}. Downgrade blocked.",
+                StatusKind.Neutral);
+            return;
+        }
+
         string tempDirectory = Path.Combine(Path.GetTempPath(), "RetreatUI-Launcher");
         Directory.CreateDirectory(tempDirectory);
         string zipPath = Path.Combine(tempDirectory, $"{Guid.NewGuid():N}.zip");
@@ -600,4 +625,5 @@ public partial class MainWindow : Window
         Error
     }
 }
+
 

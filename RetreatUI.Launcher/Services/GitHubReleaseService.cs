@@ -12,7 +12,7 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class GitHubReleaseService
 {
-    private const string ReleasesUrl = "https://api.github.com/repos/RetreatUI/RetreatUI-Addon/releases?per_page=30";
+    private const string ReleasesUrl = "https://api.github.com/repos/RetreatUI/RetreatUI-Addon/releases?per_page=100";
     private readonly HttpClient _httpClient;
 
     public GitHubReleaseService()
@@ -22,14 +22,29 @@ public sealed class GitHubReleaseService
             Timeout = TimeSpan.FromSeconds(30)
         };
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.2.1"));
+            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.2.5"));
         _httpClient.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
     }
 
-    public async Task<GitHubRelease?> GetLatestReleaseAsync(bool includeBeta, CancellationToken cancellationToken = default)
+    public async Task<GitHubRelease?> GetLatestReleaseAsync(
+        bool includeBeta,
+        CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(ReleasesUrl, cancellationToken);
+        string requestUrl =
+            $"{ReleasesUrl}&cache_bust={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        using HttpRequestMessage request = new(HttpMethod.Get, requestUrl);
+        request.Headers.CacheControl = new CacheControlHeaderValue
+        {
+            NoCache = true,
+            NoStore = true
+        };
+        request.Headers.Pragma.ParseAdd("no-cache");
+
+        using HttpResponseMessage response = await _httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
         response.EnsureSuccessStatusCode();
 
         await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -37,16 +52,16 @@ public sealed class GitHubReleaseService
             stream,
             cancellationToken: cancellationToken) ?? new List<GitHubRelease>();
 
-        IEnumerable<GitHubRelease> candidates = releases.Where(r => !r.Draft);
+        IEnumerable<GitHubRelease> candidates = releases.Where(release => !release.Draft);
         if (!includeBeta)
         {
-            candidates = candidates.Where(r => !r.Prerelease);
+            candidates = candidates.Where(release => !release.Prerelease);
         }
 
         return candidates
             .Where(HasRetreatUiAsset)
-            .OrderByDescending(r => ParseVersion(r.TagName))
-            .ThenByDescending(r => r.PublishedAt)
+            .OrderByDescending(release => AddonVersion.Parse(release.TagName))
+            .ThenByDescending(release => release.PublishedAt)
             .FirstOrDefault();
     }
 
@@ -87,51 +102,6 @@ public sealed class GitHubReleaseService
         }
     }
 
-    private static bool HasRetreatUiAsset(GitHubRelease release) => FindRetreatUiAsset(release) is not null;
-
-    private static VersionKey ParseVersion(string tag)
-    {
-        string value = tag.Trim().TrimStart('v', 'V');
-        string[] split = value.Split('-', 2, StringSplitOptions.RemoveEmptyEntries);
-        string[] parts = split[0].Split('.');
-
-        int major = parts.Length > 0 && int.TryParse(parts[0], out int ma) ? ma : 0;
-        int minor = parts.Length > 1 && int.TryParse(parts[1], out int mi) ? mi : 0;
-        int patch = parts.Length > 2 && int.TryParse(parts[2], out int pa) ? pa : 0;
-
-        bool prerelease = split.Length > 1;
-        int prereleaseNumber = 0;
-        if (prerelease)
-        {
-            string[] prereleaseParts = split[1].Split('.');
-            int.TryParse(prereleaseParts.LastOrDefault(), out prereleaseNumber);
-        }
-
-        return new VersionKey(major, minor, patch, prerelease, prereleaseNumber);
-    }
-
-    private readonly record struct VersionKey(
-        int Major,
-        int Minor,
-        int Patch,
-        bool IsPrerelease,
-        int PrereleaseNumber) : IComparable<VersionKey>
-    {
-        public int CompareTo(VersionKey other)
-        {
-            int result = Major.CompareTo(other.Major);
-            if (result != 0) return result;
-            result = Minor.CompareTo(other.Minor);
-            if (result != 0) return result;
-            result = Patch.CompareTo(other.Patch);
-            if (result != 0) return result;
-
-            if (IsPrerelease != other.IsPrerelease)
-            {
-                return IsPrerelease ? -1 : 1;
-            }
-
-            return PrereleaseNumber.CompareTo(other.PrereleaseNumber);
-        }
-    }
+    private static bool HasRetreatUiAsset(GitHubRelease release) =>
+        FindRetreatUiAsset(release) is not null;
 }
