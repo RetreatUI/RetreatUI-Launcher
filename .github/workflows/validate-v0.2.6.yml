@@ -1,4 +1,4 @@
-name: Validate RetreatUI Launcher v0.2.7
+name: Validate RetreatUI Launcher
 
 on:
   push:
@@ -44,8 +44,15 @@ jobs:
         run: |
           $exe = "publish/RetreatUI_Launcher.exe"
           if (!(Test-Path -LiteralPath $exe)) { throw "Launcher EXE was not created." }
+
+          [xml]$project = Get-Content -LiteralPath "RetreatUI.Launcher/RetreatUI.Launcher.csproj"
+          $expectedVersion = [string]$project.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($expectedVersion)) { throw "The launcher project version is missing." }
+
           $version = (Get-Item -LiteralPath $exe).VersionInfo.FileVersion
-          if (!$version.StartsWith("0.2.7")) { throw "Unexpected launcher version: $version" }
+          if (!$version.StartsWith($expectedVersion)) { throw "Unexpected launcher version: $version (expected $expectedVersion)" }
+
+          "LAUNCHER_VERSION=$expectedVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath "publish/RetreatUI_Launcher.exe.sha256" -Encoding ascii
           Compress-Archive -Path $exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
@@ -53,7 +60,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RetreatUI-Launcher-v0.2.7
+          name: RetreatUI-Launcher-v${{ env.LAUNCHER_VERSION }}
           path: |
             publish/RetreatUI_Launcher.exe
             publish/RetreatUI_Launcher.exe.sha256
