@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: retreatui-launcher-release
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -121,7 +121,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: RetreatUI Launcher v${{ steps.version.outputs.version }}
           body: |
-            Launcher ${{ steps.version.outputs.version }} improves update reliability by comparing the public release feed with the live GitHub Releases API, preventing a valid but stale feed from hiding newly published RetreatUI updates.
+            Launcher ${{ steps.version.outputs.version }} fixes the Burning Crusade label, removes blurred banner artwork, shows only verified addon release assets as Latest on channel, and compares the public feed against live GitHub releases.
           files: |
             publish/RetreatUI_Launcher.exe
             publish/RetreatUI_Launcher.exe.sha256
