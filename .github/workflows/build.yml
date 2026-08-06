@@ -18,6 +18,9 @@ on:
 permissions:
   contents: write
 
+env:
+  DOTNET_INSTALL_DIR: ${{ runner.temp }}\dotnet
+
 concurrency:
   group: launcher-${{ github.ref }}
   cancel-in-progress: true
