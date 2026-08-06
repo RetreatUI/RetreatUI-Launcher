@@ -9,8 +9,10 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class LauncherUpdateService
 {
-    private const string ReleasesBaseUrl =
-        "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher-Releases/releases";
+    private const string ReleaseFeedUrl =
+        "https://raw.githubusercontent.com/RetreatUI/RetreatUI-Launcher-Releases/main/feed/launcher-releases.json";
+    private const string ApiReleasesUrl =
+        "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher-Releases/releases?per_page=30";
     private const string ExecutableAssetName = "RetreatUI_Launcher.exe";
     private const string ChecksumAssetName = "RetreatUI_Launcher.exe.sha256";
 
@@ -24,36 +26,15 @@ public sealed class LauncherUpdateService
         };
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("RetreatUI-Launcher", CurrentVersion));
-        _httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        _httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
-        {
-            NoCache = true,
-            NoStore = true
-        };
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.2.8";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.5";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
-        string releasesUrl =
-            $"{ReleasesBaseUrl}?per_page=30&retreatui_cache_bust={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-
-        using HttpResponseMessage response = await _httpClient.GetAsync(releasesUrl, cancellationToken);
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            return null;
-        }
-
-        response.EnsureSuccessStatusCode();
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        List<GitHubRelease>? releases = await JsonSerializer.DeserializeAsync<List<GitHubRelease>>(
-            stream,
-            cancellationToken: cancellationToken);
-
-        if (releases is null || releases.Count == 0)
+        List<GitHubRelease> releases = await LoadReleasesAsync(cancellationToken);
+        if (releases.Count == 0)
         {
             return null;
         }
@@ -204,6 +185,50 @@ public sealed class LauncherUpdateService
         Version candidateVersion = ParseVersion(candidate);
         Version installedVersion = ParseVersion(installed);
         return candidateVersion > installedVersion;
+    }
+
+    private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            using HttpResponseMessage feedResponse = await _httpClient.GetAsync(
+                feedUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if (feedResponse.IsSuccessStatusCode)
+            {
+                return await DeserializeReleasesAsync(feedResponse, cancellationToken);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Fall back to the GitHub API only when the CDN feed is unavailable.
+        }
+        catch (JsonException)
+        {
+            // Fall back to the GitHub API if the feed is temporarily malformed.
+        }
+
+        using HttpRequestMessage apiRequest = new(HttpMethod.Get, ApiReleasesUrl);
+        apiRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        using HttpResponseMessage apiResponse = await _httpClient.SendAsync(
+            apiRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        apiResponse.EnsureSuccessStatusCode();
+        return await DeserializeReleasesAsync(apiResponse, cancellationToken);
+    }
+
+    private static async Task<List<GitHubRelease>> DeserializeReleasesAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonSerializer.DeserializeAsync<List<GitHubRelease>>(
+            stream,
+            cancellationToken: cancellationToken) ?? new List<GitHubRelease>();
     }
 
     private async Task DownloadFileAsync(
