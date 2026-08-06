@@ -2,6 +2,11 @@ name: Build RetreatUI Launcher
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "RetreatUI.Launcher/**"
+      - "RetreatUI.Launcher.sln"
+      - ".github/workflows/build.yml"
   push:
     tags:
       - "launcher-v*"
