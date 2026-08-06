@@ -13,6 +13,12 @@ namespace RetreatUI.Launcher.Services;
 public sealed class GitHubReleaseService
 {
     private const string ReleasesUrl = "https://api.github.com/repos/RetreatUI/RetreatUI-Addon/releases?per_page=100";
+    private static readonly string[] TbcAssetPrefixes =
+    {
+        "RetreatUI_TBC_v",
+        "RetreatUI-TBC-v"
+    };
+
     private readonly HttpClient _httpClient;
 
     public GitHubReleaseService()
@@ -22,12 +28,13 @@ public sealed class GitHubReleaseService
             Timeout = TimeSpan.FromSeconds(30)
         };
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.2.8"));
+            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.3.0"));
         _httpClient.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
     }
 
     public async Task<GitHubRelease?> GetLatestReleaseAsync(
+        GameEdition edition,
         bool includeBeta,
         CancellationToken cancellationToken = default)
     {
@@ -59,17 +66,39 @@ public sealed class GitHubReleaseService
         }
 
         return candidates
-            .Where(HasRetreatUiAsset)
-            .OrderByDescending(release => AddonVersion.Parse(release.TagName))
+            .Where(release => FindRetreatUiAsset(release, edition) is not null)
+            .OrderByDescending(release => AddonVersion.Parse(GetAssetVersion(release, edition)))
             .ThenByDescending(release => release.PublishedAt)
             .FirstOrDefault();
     }
 
-    public static GitHubAsset? FindRetreatUiAsset(GitHubRelease release)
+    public static GitHubAsset? FindRetreatUiAsset(GitHubRelease release, GameEdition edition)
     {
-        return release.Assets.FirstOrDefault(asset =>
-            asset.Name.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase)
-            && asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+        return release.Assets.FirstOrDefault(asset => IsCompatibleAsset(asset.Name, edition));
+    }
+
+    public static string GetAssetVersion(GitHubRelease release, GameEdition edition)
+    {
+        GitHubAsset? asset = FindRetreatUiAsset(release, edition);
+        if (asset is not null)
+        {
+            string fileName = Path.GetFileNameWithoutExtension(asset.Name);
+            if (edition == GameEdition.CoA
+                && fileName.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase))
+            {
+                return NormalizeVersion(fileName["RetreatUI_v".Length..]);
+            }
+
+            foreach (string prefix in TbcAssetPrefixes)
+            {
+                if (fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return NormalizeVersion(fileName[prefix.Length..]);
+                }
+            }
+        }
+
+        return NormalizeVersion(release.TagName);
     }
 
     public async Task DownloadAssetAsync(
@@ -102,6 +131,23 @@ public sealed class GitHubReleaseService
         }
     }
 
-    private static bool HasRetreatUiAsset(GitHubRelease release) =>
-        FindRetreatUiAsset(release) is not null;
+    private static bool IsCompatibleAsset(string assetName, GameEdition edition)
+    {
+        if (!assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (edition == GameEdition.Tbc)
+        {
+            return TbcAssetPrefixes.Any(prefix =>
+                assetName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return assetName.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase)
+               && !assetName.Contains("TBC", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeVersion(string version) =>
+        version.Trim().TrimStart('v', 'V');
 }
