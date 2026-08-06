@@ -21,6 +21,7 @@ public partial class App : Application
         try
         {
             MainWindow = new MainWindow();
+            LauncherTheme.Apply(MainWindow);
             MainWindow.SourceInitialized += (_, _) => ApplyDarkTitleBar(MainWindow);
             MainWindow.Show();
         }
