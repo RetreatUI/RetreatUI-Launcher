@@ -4,8 +4,8 @@
         Title="RetreatUI Launcher"
         Width="1200"
         Height="900"
-        MinWidth="1060"
-        MinHeight="795"
+        MinWidth="980"
+        MinHeight="735"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
         Icon="Assets/RetreatUI_Launcher.ico">
@@ -17,7 +17,6 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="MinHeight" Value="178"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
@@ -26,25 +25,17 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="7"
-                                ClipToBounds="True"
-                                SnapsToDevicePixels="True">
+                                ClipToBounds="True">
                             <Grid>
-                                <ContentPresenter HorizontalAlignment="Stretch"
-                                                  VerticalAlignment="Stretch"/>
+                                <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                                 <Border x:Name="SelectionRing"
-                                        Width="29"
-                                        Height="29"
-                                        CornerRadius="15"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center"
-                                        Margin="0,0,21,0"
-                                        Background="#A3070C10"
-                                        BorderBrush="#53606C78"
+                                        Width="28" Height="28" CornerRadius="14"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Margin="0,0,20,0"
+                                        Background="#B2070C10"
+                                        BorderBrush="#56667482"
                                         BorderThickness="2">
-                                    <Ellipse x:Name="SelectionDot"
-                                             Width="13"
-                                             Height="13"
-                                             Fill="Transparent"/>
+                                    <Ellipse x:Name="SelectionDot" Width="13" Height="13" Fill="Transparent"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -53,14 +44,11 @@
                                 <Setter TargetName="EditionCard" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
                                 <Setter TargetName="EditionCard" Property="BorderThickness" Value="1.5"/>
                                 <Setter TargetName="SelectionRing" Property="BorderBrush" Value="{StaticResource AccentHoverBrush}"/>
-                                <Setter TargetName="SelectionRing" Property="Background" Value="#A9251508"/>
+                                <Setter TargetName="SelectionRing" Property="Background" Value="#B52B1808"/>
                                 <Setter TargetName="SelectionDot" Property="Fill" Value="{StaticResource AccentBrush}"/>
                                 <Setter TargetName="EditionCard" Property="Effect">
                                     <Setter.Value>
-                                        <DropShadowEffect Color="#7E4B16"
-                                                          BlurRadius="10"
-                                                          ShadowDepth="0"
-                                                          Opacity="0.22"/>
+                                        <DropShadowEffect Color="#8C561B" BlurRadius="10" ShadowDepth="0" Opacity="0.24"/>
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
@@ -81,12 +69,12 @@
             <Setter Property="BorderBrush" Value="{StaticResource SoftBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="18,16"/>
+            <Setter Property="Padding" Value="18,15"/>
         </Style>
 
         <Style x:Key="FooterButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="MinHeight" Value="45"/>
-            <Setter Property="Padding" Value="15,11"/>
+            <Setter Property="Height" Value="46"/>
+            <Setter Property="Padding" Value="16,10"/>
             <Setter Property="FontFamily" Value="Palatino Linotype"/>
             <Setter Property="FontSize" Value="14"/>
         </Style>
@@ -95,24 +83,16 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="14,10">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" Padding="15,10">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Viewbox Width="19" Height="19" Margin="0,0,10,0">
                                     <Canvas Width="24" Height="24">
                                         <Path Data="M12,2 L20,6 V12 C20,17 16.8,20.4 12,22 C7.2,20.4 4,17 4,12 V6 Z"
-                                              Stroke="{StaticResource AccentBrush}"
-                                              StrokeThickness="1.7"
-                                              Fill="Transparent"/>
-                                        <Path Data="M12,7 V17 M8,12 H16"
-                                              Stroke="{StaticResource AccentBrush}"
-                                              StrokeThickness="1.5"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"/>
+                                              Stroke="{StaticResource AccentBrush}" StrokeThickness="1.7" Fill="Transparent"/>
+                                        <Path Data="M12,7 V17 M8,12 H16" Stroke="{StaticResource AccentBrush}"
+                                              StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                     </Canvas>
                                 </Viewbox>
                                 <ContentPresenter VerticalAlignment="Center"/>
@@ -136,20 +116,15 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="14,10">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" Padding="15,10">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Viewbox Width="19" Height="19" Margin="0,0,10,0">
                                     <Canvas Width="24" Height="24">
                                         <Path Data="M2.5,6.5 H9 L11.2,9 H21.5 V20.5 H2.5 Z"
-                                              Stroke="{StaticResource AccentBrush}"
-                                              StrokeThickness="1.6"
-                                              Fill="Transparent"
-                                              StrokeLineJoin="Round"/>
+                                              Stroke="{StaticResource AccentBrush}" StrokeThickness="1.6"
+                                              Fill="Transparent" StrokeLineJoin="Round"/>
                                     </Canvas>
                                 </Viewbox>
                                 <ContentPresenter VerticalAlignment="Center"/>
@@ -173,19 +148,12 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5"
-                                Padding="14,10">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" Padding="15,10">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Path Data="M0,0 L0,18 L15,9 Z"
-                                      Fill="{StaticResource AccentBrush}"
-                                      Width="15"
-                                      Height="18"
-                                      Stretch="Fill"
-                                      Margin="0,0,10,0"/>
+                                <Path Data="M0,0 L0,18 L15,9 Z" Fill="{StaticResource AccentBrush}"
+                                      Width="15" Height="18" Stretch="Fill" Margin="0,0,10,0"/>
                                 <ContentPresenter VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
@@ -204,514 +172,308 @@
         </Style>
     </Window.Resources>
 
-    <Border Background="{StaticResource LauncherBackgroundBrush}"
-            BorderBrush="#29333D"
-            BorderThickness="1"
-            ClipToBounds="True">
+    <Border Background="{StaticResource LauncherBackgroundBrush}" BorderBrush="#29333D" BorderThickness="1" ClipToBounds="True">
         <Grid>
             <Rectangle Fill="{StaticResource HeaderGlowBrush}" IsHitTestVisible="False"/>
             <Rectangle Fill="{StaticResource SubtleTextureBrush}" IsHitTestVisible="False" Opacity="0.82"/>
             <Rectangle IsHitTestVisible="False">
                 <Rectangle.Fill>
-                    <RadialGradientBrush Center="0.78,0.34" GradientOrigin="0.78,0.34" RadiusX="0.62" RadiusY="0.72">
-                        <GradientStop Color="#142B1E0C" Offset="0"/>
+                    <RadialGradientBrush Center="0.80,0.34" GradientOrigin="0.80,0.34" RadiusX="0.62" RadiusY="0.72">
+                        <GradientStop Color="#162D200D" Offset="0"/>
                         <GradientStop Color="#00000000" Offset="1"/>
                     </RadialGradientBrush>
                 </Rectangle.Fill>
             </Rectangle>
-            <Rectangle IsHitTestVisible="False">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#00000000" Offset="0"/>
-                        <GradientStop Color="#2B000000" Offset="1"/>
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
 
-            <Grid Margin="28,25,28,24">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="20"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="18"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="16"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="15"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="86"
-                                Height="86"
-                                CornerRadius="7"
-                                BorderBrush="#76552F"
-                                BorderThickness="1"
-                                Background="#E3050B10"
-                                Margin="0,0,24,0">
-                            <Image Source="Assets/RetreatUI_Launcher_256.png"
-                                   Width="80"
-                                   Height="80"
-                                   Stretch="Uniform"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="RETREATUI LAUNCHER"
-                                       Foreground="{StaticResource TitleBrush}"
-                                       FontFamily="Palatino Linotype"
-                                       FontSize="35"
-                                       FontWeight="Normal"/>
-                            <TextBlock x:Name="LauncherVersionText"
-                                       Text="Launcher"
-                                       Margin="2,5,0,0"
-                                       Foreground="{StaticResource MutedTextBrush}"
-                                       FontSize="13"/>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,0,0">
-                        <TextBlock Text="UPDATE CHANNEL"
-                                   HorizontalAlignment="Right"
-                                   Margin="0,0,0,10"
-                                   Foreground="{StaticResource MutedTextBrush}"
-                                   FontFamily="Palatino Linotype"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"/>
-                        <StackPanel Orientation="Horizontal">
-                            <RadioButton x:Name="StableRadio"
-                                         GroupName="Channel"
-                                         Content="Stable"
-                                         Style="{StaticResource ChannelRadioStyle}"
-                                         Checked="ChannelRadio_Checked"/>
-                            <RadioButton x:Name="BetaRadio"
-                                         GroupName="Channel"
-                                         Content="Beta"
-                                         Margin="10,0,0,0"
-                                         Style="{StaticResource ChannelRadioStyle}"
-                                         Checked="ChannelRadio_Checked"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Grid>
-
-                <Grid Grid.Row="2">
+            <Viewbox Stretch="Uniform" StretchDirection="Both" Margin="0">
+                <Grid Width="1360" Height="970" Margin="32,24,32,22">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="11"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="112"/>
+                        <RowDefinition Height="18"/>
+                        <RowDefinition Height="222"/>
+                        <RowDefinition Height="18"/>
+                        <RowDefinition Height="370"/>
+                        <RowDefinition Height="18"/>
+                        <RowDefinition Height="132"/>
+                        <RowDefinition Height="18"/>
+                        <RowDefinition Height="56"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="CHOOSE YOUR GAME"
-                               Foreground="{StaticResource MutedTextBrush}"
-                               FontSize="11.5"
-                               FontWeight="SemiBold"/>
-                    <Grid Grid.Row="2">
+
+                    <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="15"/>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-
-                        <RadioButton x:Name="CoARadio"
-                                     GroupName="Edition"
-                                     Style="{StaticResource EditionRadioStyle}"
-                                     Checked="EditionRadio_Checked">
-                            <Grid ClipToBounds="True">
-                                <Rectangle Fill="{StaticResource CoACardBackgroundBrush}"/>
-                                <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.58" IsHitTestVisible="False"/>
-                                <Image Source="Assets/ProjectAscensionWatermark.png"
-                                       Width="360"
-                                       HorizontalAlignment="Right"
-                                       VerticalAlignment="Center"
-                                       Stretch="Uniform"
-                                       Opacity="0.93"
-                                       Margin="0,0,34,0"
-                                       IsHitTestVisible="False">
-                                    <Image.OpacityMask>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#00FFFFFF" Offset="0"/>
-                                            <GradientStop Color="#68FFFFFF" Offset="0.20"/>
-                                            <GradientStop Color="#F2FFFFFF" Offset="0.52"/>
-                                            <GradientStop Color="#FFFFFFFF" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Image.OpacityMask>
-                                    <Image.Effect>
-                                        <DropShadowEffect Color="#786E5130" BlurRadius="9" ShadowDepth="0" Opacity="0.22"/>
-                                    </Image.Effect>
-                                </Image>
-                                <Rectangle Fill="{StaticResource CardTextProtectionBrush}" IsHitTestVisible="False"/>
-                                <StackPanel VerticalAlignment="Center" Margin="26,0,150,0">
-                                    <TextBlock Text="CONQUEST OF AZEROTH"
-                                               FontFamily="Palatino Linotype"
-                                               FontSize="22"
-                                               FontWeight="Bold"/>
-                                    <TextBlock Text="Project Ascension · 21 custom classes"
-                                               Margin="0,8,0,0"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               FontSize="14"/>
-                                    <TextBlock Text="CoA"
-                                               Margin="0,22,0,0"
-                                               Foreground="{StaticResource AccentHoverBrush}"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
-
-                        <RadioButton x:Name="TbcRadio"
-                                     Grid.Column="2"
-                                     GroupName="Edition"
-                                     Style="{StaticResource EditionRadioStyle}"
-                                     Checked="EditionRadio_Checked">
-                            <Grid ClipToBounds="True">
-                                <Rectangle Fill="{StaticResource TbcCardBackgroundBrush}"/>
-                                <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.58" IsHitTestVisible="False"/>
-                                <Image Source="Assets/TbcWatermark.png"
-                                       Width="390"
-                                       HorizontalAlignment="Right"
-                                       VerticalAlignment="Center"
-                                       Stretch="Uniform"
-                                       Opacity="0.98"
-                                       Margin="0,0,22,0"
-                                       IsHitTestVisible="False">
-                                    <Image.OpacityMask>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="#00FFFFFF" Offset="0"/>
-                                            <GradientStop Color="#66FFFFFF" Offset="0.18"/>
-                                            <GradientStop Color="#F5FFFFFF" Offset="0.48"/>
-                                            <GradientStop Color="#FFFFFFFF" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Image.OpacityMask>
-                                    <Image.Effect>
-                                        <DropShadowEffect Color="#A9722B" BlurRadius="12" ShadowDepth="0" Opacity="0.24"/>
-                                    </Image.Effect>
-                                </Image>
-                                <Rectangle Fill="{StaticResource CardTextProtectionBrush}" IsHitTestVisible="False"/>
-                                <StackPanel VerticalAlignment="Center" Margin="26,0,165,0">
-                                    <TextBlock Text="THE BURNING CRUSADE"
-                                               FontFamily="Palatino Linotype"
-                                               FontSize="22"
-                                               FontWeight="Bold"/>
-                                    <TextBlock Text="Classic / Anniversary client"
-                                               Margin="0,8,0,0"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               FontSize="14"/>
-                                    <TextBlock Text="TBC"
-                                               Margin="0,22,0,0"
-                                               Foreground="{StaticResource AccentHoverBrush}"
-                                               FontSize="14"
-                                               FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Grid>
-                        </RadioButton>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="88" Height="88" CornerRadius="7" BorderBrush="#76552F"
+                                    BorderThickness="1" Background="#E3050B10" Margin="0,0,28,0">
+                                <Image Source="Assets/RetreatUI_Launcher_256.png" Width="82" Height="82" Stretch="Uniform"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="RETREATUI LAUNCHER" Foreground="{StaticResource TitleBrush}"
+                                           FontFamily="Palatino Linotype" FontSize="38" FontWeight="Normal"/>
+                                <TextBlock x:Name="LauncherVersionText" Text="Launcher" Margin="2,7,0,0"
+                                           Foreground="{StaticResource MutedTextBrush}" FontSize="14"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,0,0">
+                            <TextBlock Text="UPDATE CHANNEL" HorizontalAlignment="Right" Margin="0,0,0,11"
+                                       Foreground="{StaticResource MutedTextBrush}" FontFamily="Palatino Linotype"
+                                       FontSize="13.5" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="StableRadio" GroupName="Channel" Content="Stable"
+                                             Style="{StaticResource ChannelRadioStyle}" Checked="ChannelRadio_Checked"/>
+                                <RadioButton x:Name="BetaRadio" GroupName="Channel" Content="Beta" Margin="10,0,0,0"
+                                             Style="{StaticResource ChannelRadioStyle}" Checked="ChannelRadio_Checked"/>
+                            </StackPanel>
+                        </StackPanel>
                     </Grid>
-                </Grid>
 
-                <Border Grid.Row="4"
-                        Background="{StaticResource PanelBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="7"
-                        ClipToBounds="True">
-                    <Grid>
-                        <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.48" IsHitTestVisible="False"/>
-                        <Image Source="Assets/ProjectAscensionWatermark.png"
-                               Width="500"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Top"
-                               Stretch="Uniform"
-                               Opacity="0.25"
-                               Margin="0,22,54,0"
-                               IsHitTestVisible="False">
-                            <Image.OpacityMask>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#D8FFFFFF" Offset="0"/>
-                                    <GradientStop Color="#74FFFFFF" Offset="0.58"/>
-                                    <GradientStop Color="#00FFFFFF" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Image.OpacityMask>
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsChecked, ElementName=CoARadio}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
-                        <Image Source="Assets/TbcWatermark.png"
-                               Width="560"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Top"
-                               Stretch="Uniform"
-                               Opacity="0.28"
-                               Margin="0,12,28,0"
-                               IsHitTestVisible="False">
-                            <Image.OpacityMask>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Color="#E0FFFFFF" Offset="0"/>
-                                    <GradientStop Color="#7AFFFFFF" Offset="0.58"/>
-                                    <GradientStop Color="#00FFFFFF" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Image.OpacityMask>
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsChecked, ElementName=TbcRadio}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
-                        <Rectangle Fill="{StaticResource DetailTextProtectionBrush}" IsHitTestVisible="False"/>
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="24"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="186"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="CHOOSE YOUR GAME" Foreground="{StaticResource MutedTextBrush}"
+                                   FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="18"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                        <Grid Margin="22,20,22,20">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="14"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="14"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="14"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock x:Name="EditionTitleText"
-                                               Text="Conquest of Azeroth"
-                                               FontFamily="Palatino Linotype"
-                                               FontSize="27"
-                                               FontWeight="Bold"/>
-                                    <TextBlock x:Name="EditionSubtitleText"
-                                               Text="Project Ascension installation"
-                                               Margin="0,4,0,0"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               FontSize="13.5"/>
-                                </StackPanel>
-                                <Button x:Name="LauncherUpdateButton"
-                                        Grid.Column="1"
-                                        Content="UPDATE LAUNCHER"
-                                        Margin="14,0,0,0"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Visibility="Collapsed"
-                                        Click="LauncherUpdateButton_Click"/>
-                            </Grid>
-
-                            <Grid Grid.Row="2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="14"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource VersionCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="INSTALLED"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   FontFamily="Palatino Linotype"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
-                                        <TextBlock x:Name="InstalledVersionText"
-                                                   Text="Unknown"
-                                                   Margin="0,7,0,0"
-                                                   FontFamily="Palatino Linotype"
-                                                   FontSize="27"
-                                                   FontWeight="Bold"/>
+                            <RadioButton x:Name="CoARadio" GroupName="Edition" Style="{StaticResource EditionRadioStyle}"
+                                         Checked="EditionRadio_Checked">
+                                <Grid ClipToBounds="True">
+                                    <Rectangle Fill="{StaticResource CoACardBackgroundBrush}"/>
+                                    <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.58" IsHitTestVisible="False"/>
+                                    <Image Source="Assets/ProjectAscensionWatermark.png" Width="370"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" Stretch="Uniform"
+                                           Opacity="0.94" Margin="0,0,34,0" IsHitTestVisible="False">
+                                        <Image.OpacityMask>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#00FFFFFF" Offset="0"/>
+                                                <GradientStop Color="#5AFFFFFF" Offset="0.20"/>
+                                                <GradientStop Color="#E8FFFFFF" Offset="0.53"/>
+                                                <GradientStop Color="#FFFFFFFF" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Image.OpacityMask>
+                                        <Image.Effect>
+                                            <DropShadowEffect Color="#806E5130" BlurRadius="9" ShadowDepth="0" Opacity="0.22"/>
+                                        </Image.Effect>
+                                    </Image>
+                                    <Rectangle Fill="{StaticResource CardTextProtectionBrush}" IsHitTestVisible="False"/>
+                                    <StackPanel VerticalAlignment="Center" Margin="28,0,185,0">
+                                        <TextBlock Text="CONQUEST OF AZEROTH" FontFamily="Palatino Linotype"
+                                                   FontSize="24" FontWeight="Bold"/>
+                                        <TextBlock Text="Project Ascension · 21 custom classes" Margin="0,9,0,0"
+                                                   Foreground="{StaticResource MutedTextBrush}" FontSize="15"/>
+                                        <TextBlock Text="CoA" Margin="0,23,0,0" Foreground="{StaticResource AccentHoverBrush}"
+                                                   FontSize="15" FontWeight="SemiBold"/>
                                     </StackPanel>
-                                </Border>
-                                <Border Grid.Column="2" Style="{StaticResource VersionCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="LATEST ON CHANNEL"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   FontFamily="Palatino Linotype"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
-                                        <TextBlock x:Name="LatestVersionText"
-                                                   Text="Checking..."
-                                                   Margin="0,7,0,0"
-                                                   FontFamily="Palatino Linotype"
-                                                   FontSize="27"
-                                                   FontWeight="Bold"/>
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
+                                </Grid>
+                            </RadioButton>
 
-                            <Grid Grid.Row="4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <Border Background="#E30A141D"
-                                        BorderBrush="{StaticResource SoftBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="17,12">
-                                    <StackPanel>
-                                        <TextBlock x:Name="PathLabelText"
-                                                   Text="PROJECT ASCENSION ADDONS FOLDER"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   FontFamily="Palatino Linotype"
-                                                   FontSize="11.5"
-                                                   FontWeight="SemiBold"/>
-                                        <TextBlock x:Name="PathText"
-                                                   Text="Not selected"
-                                                   Margin="0,6,0,0"
-                                                   FontFamily="Palatino Linotype"
-                                                   FontSize="14"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                            <RadioButton x:Name="TbcRadio" Grid.Column="2" GroupName="Edition"
+                                         Style="{StaticResource EditionRadioStyle}" Checked="EditionRadio_Checked">
+                                <Grid ClipToBounds="True">
+                                    <Rectangle Fill="{StaticResource TbcCardBackgroundBrush}"/>
+                                    <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.58" IsHitTestVisible="False"/>
+                                    <Image Source="Assets/TbcWatermark.png" Width="405"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" Stretch="Uniform"
+                                           Opacity="0.98" Margin="0,0,24,0" IsHitTestVisible="False">
+                                        <Image.OpacityMask>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#00FFFFFF" Offset="0"/>
+                                                <GradientStop Color="#60FFFFFF" Offset="0.18"/>
+                                                <GradientStop Color="#F0FFFFFF" Offset="0.49"/>
+                                                <GradientStop Color="#FFFFFFFF" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Image.OpacityMask>
+                                        <Image.Effect>
+                                            <DropShadowEffect Color="#A9722B" BlurRadius="12" ShadowDepth="0" Opacity="0.24"/>
+                                        </Image.Effect>
+                                    </Image>
+                                    <Rectangle Fill="{StaticResource CardTextProtectionBrush}" IsHitTestVisible="False"/>
+                                    <StackPanel VerticalAlignment="Center" Margin="28,0,198,0">
+                                        <TextBlock Text="THE BURNING CRUSADE" FontFamily="Palatino Linotype"
+                                                   FontSize="24" FontWeight="Bold"/>
+                                        <TextBlock Text="Classic / Anniversary client" Margin="0,9,0,0"
+                                                   Foreground="{StaticResource MutedTextBrush}" FontSize="15"/>
+                                        <TextBlock Text="TBC" Margin="0,23,0,0" Foreground="{StaticResource AccentHoverBrush}"
+                                                   FontSize="15" FontWeight="SemiBold"/>
                                     </StackPanel>
-                                </Border>
-                                <Button Grid.Column="2"
-                                        Content="Choose Folder"
-                                        MinWidth="130"
-                                        FontFamily="Palatino Linotype"
-                                        FontSize="14"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Click="ChooseFolderButton_Click"/>
-                            </Grid>
-
-                            <Grid Grid.Row="6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="12"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <Button x:Name="UpdateButton"
-                                            Content="CHECKING..."
-                                            Style="{StaticResource PrimaryButtonStyle}"
-                                            IsEnabled="False"
-                                            Click="UpdateButton_Click"/>
-                                    <ProgressBar x:Name="DownloadProgress"
-                                                 Height="5"
-                                                 Margin="0,8,0,0"
-                                                 Minimum="0"
-                                                 Maximum="100"
-                                                 Foreground="{StaticResource AccentBrush}"
-                                                 Background="#33000000"
-                                                 Visibility="Collapsed"/>
-                                </StackPanel>
-                                <Button x:Name="RefreshButton"
-                                        Grid.Column="2"
-                                        Content="Refresh"
-                                        MinWidth="98"
-                                        FontFamily="Palatino Linotype"
-                                        FontSize="14"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Click="RefreshButton_Click"/>
-                            </Grid>
+                                </Grid>
+                            </RadioButton>
                         </Grid>
                     </Grid>
-                </Border>
 
-                <Border Grid.Row="6"
-                        Background="#EF09131B"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="7"
-                        Padding="22,17">
-                    <Grid>
-                        <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.42" IsHitTestVisible="False"/>
+                    <Border Grid.Row="4" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="7" ClipToBounds="True">
                         <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="10"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock x:Name="ReleaseHeadingText"
-                                       Text="LATEST COA CHANGES"
-                                       FontFamily="Palatino Linotype"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource MutedTextBrush}"/>
-                            <TextBox x:Name="ReleaseNotesText"
-                                     Grid.Row="2"
-                                     Text="Checking GitHub releases..."
-                                     IsReadOnly="True"
-                                     BorderThickness="0"
-                                     Padding="0"
-                                     Background="Transparent"
-                                     Foreground="{StaticResource TextBrush}"
-                                     CaretBrush="{StaticResource TextBrush}"
-                                     TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto"
-                                     FontFamily="Palatino Linotype"
-                                     FontSize="14.5"/>
-                        </Grid>
-                    </Grid>
-                </Border>
+                            <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.48" IsHitTestVisible="False"/>
+                            <Image Source="Assets/ProjectAscensionWatermark.png" Width="520" HorizontalAlignment="Right"
+                                   VerticalAlignment="Top" Stretch="Uniform" Opacity="0.23" Margin="0,24,58,0" IsHitTestVisible="False">
+                                <Image.OpacityMask>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#D8FFFFFF" Offset="0"/>
+                                        <GradientStop Color="#70FFFFFF" Offset="0.58"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Image.OpacityMask>
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked, ElementName=CoARadio}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <Image Source="Assets/TbcWatermark.png" Width="580" HorizontalAlignment="Right"
+                                   VerticalAlignment="Top" Stretch="Uniform" Opacity="0.26" Margin="0,14,32,0" IsHitTestVisible="False">
+                                <Image.OpacityMask>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#E0FFFFFF" Offset="0"/>
+                                        <GradientStop Color="#74FFFFFF" Offset="0.58"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Image.OpacityMask>
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked, ElementName=TbcRadio}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <Rectangle Fill="{StaticResource DetailTextProtectionBrush}" IsHitTestVisible="False"/>
 
-                <Grid Grid.Row="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="21"
-                                Height="21"
-                                CornerRadius="11"
-                                Background="#22313D49"
-                                BorderBrush="#59697886"
-                                BorderThickness="1"
-                                Margin="0,0,9,0">
-                            <TextBlock Text="i"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Foreground="#B8C0C8"
-                                       FontFamily="Georgia"
-                                       FontWeight="Bold"
-                                       FontSize="13"
-                                       Margin="0,-1,0,0"/>
-                        </Border>
-                        <Ellipse x:Name="StatusDot"
-                                 Width="1"
-                                 Height="1"
-                                 Fill="Transparent"
-                                 Visibility="Collapsed"/>
-                        <TextBlock x:Name="StatusText"
-                                   Text="Starting launcher..."
-                                   Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center"
-                                   FontFamily="Palatino Linotype"
-                                   FontSize="13.5"
-                                   TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-                    <Button x:Name="SupportButton"
-                            Grid.Column="1"
-                            Content="Support RetreatUI"
-                            Style="{StaticResource SupportButtonStyle}"
-                            Click="SupportButton_Click"/>
-                    <Button x:Name="OpenFolderButton"
-                            Grid.Column="3"
-                            Content="Open AddOns Folder"
-                            Style="{StaticResource FolderButtonStyle}"
-                            IsEnabled="False"
-                            Click="OpenFolderButton_Click"/>
-                    <Button x:Name="LaunchButton"
-                            Grid.Column="5"
-                            Content="Launch CoA"
-                            Style="{StaticResource LaunchButtonStyle}"
-                            IsEnabled="False"
-                            Click="LaunchButton_Click"/>
+                            <Grid Margin="24,21,24,20">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="60"/>
+                                    <RowDefinition Height="14"/>
+                                    <RowDefinition Height="98"/>
+                                    <RowDefinition Height="14"/>
+                                    <RowDefinition Height="74"/>
+                                    <RowDefinition Height="14"/>
+                                    <RowDefinition Height="55"/>
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock x:Name="EditionTitleText" Text="Conquest of Azeroth"
+                                                   FontFamily="Palatino Linotype" FontSize="29" FontWeight="Bold"/>
+                                        <TextBlock x:Name="EditionSubtitleText" Text="Project Ascension installation"
+                                                   Margin="0,5,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="14"/>
+                                    </StackPanel>
+                                    <Button x:Name="LauncherUpdateButton" Grid.Column="1" Content="UPDATE LAUNCHER"
+                                            Margin="14,0,0,0" Style="{StaticResource SecondaryButtonStyle}"
+                                            Visibility="Collapsed" Click="LauncherUpdateButton_Click"/>
+                                </Grid>
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource VersionCardStyle}">
+                                        <StackPanel>
+                                            <TextBlock Text="INSTALLED" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontFamily="Palatino Linotype" FontSize="12.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="InstalledVersionText" Text="Unknown" Margin="0,7,0,0"
+                                                       FontFamily="Palatino Linotype" FontSize="28" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource VersionCardStyle}">
+                                        <StackPanel>
+                                            <TextBlock Text="LATEST ON CHANNEL" Foreground="{StaticResource MutedTextBrush}"
+                                                       FontFamily="Palatino Linotype" FontSize="12.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="LatestVersionText" Text="Checking..." Margin="0,7,0,0"
+                                                       FontFamily="Palatino Linotype" FontSize="28" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Grid Grid.Row="4">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="145"/></Grid.ColumnDefinitions>
+                                    <Border Background="#E30A141D" BorderBrush="{StaticResource SoftBorderBrush}" BorderThickness="1"
+                                            CornerRadius="6" Padding="18,12">
+                                        <StackPanel>
+                                            <TextBlock x:Name="PathLabelText" Text="PROJECT ASCENSION ADDONS FOLDER"
+                                                       Foreground="{StaticResource MutedTextBrush}" FontFamily="Palatino Linotype"
+                                                       FontSize="11.5" FontWeight="SemiBold"/>
+                                            <TextBlock x:Name="PathText" Text="Not selected" Margin="0,7,0,0"
+                                                       FontFamily="Palatino Linotype" FontSize="14.5" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Button Grid.Column="2" Content="Choose Folder" FontFamily="Palatino Linotype" FontSize="14"
+                                            Style="{StaticResource SecondaryButtonStyle}" Click="ChooseFolderButton_Click"/>
+                                </Grid>
+                                <Grid Grid.Row="6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="110"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <Button x:Name="UpdateButton" Content="CHECKING..." Style="{StaticResource PrimaryButtonStyle}"
+                                                IsEnabled="False" Click="UpdateButton_Click"/>
+                                        <ProgressBar x:Name="DownloadProgress" Height="5" Margin="0,7,0,0" Minimum="0" Maximum="100"
+                                                     Foreground="{StaticResource AccentBrush}" Background="#33000000" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                    <Button x:Name="RefreshButton" Grid.Column="2" Content="Refresh" FontFamily="Palatino Linotype"
+                                            FontSize="14" Style="{StaticResource SecondaryButtonStyle}" Click="RefreshButton_Click"/>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="6" Background="#EF09131B" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="7" Padding="22,17">
+                        <Grid>
+                            <Rectangle Fill="{StaticResource SubtleTextureBrush}" Opacity="0.42" IsHitTestVisible="False"/>
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="22"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <TextBlock x:Name="ReleaseHeadingText" Text="LATEST COA CHANGES" FontFamily="Palatino Linotype"
+                                           FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"/>
+                                <TextBox x:Name="ReleaseNotesText" Grid.Row="2" Text="Checking GitHub releases..."
+                                         IsReadOnly="True" BorderThickness="0" Padding="0" Background="Transparent"
+                                         Foreground="{StaticResource TextBrush}" CaretBrush="{StaticResource TextBrush}"
+                                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Palatino Linotype" FontSize="14.5"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="185"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="205"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="160"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="22" Height="22" CornerRadius="11" Background="#22313D49"
+                                    BorderBrush="#59697886" BorderThickness="1" Margin="0,0,10,0">
+                                <TextBlock Text="i" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="#B8C0C8" FontFamily="Georgia" FontWeight="Bold" FontSize="13" Margin="0,-1,0,0"/>
+                            </Border>
+                            <Ellipse x:Name="StatusDot" Width="1" Height="1" Fill="Transparent" Visibility="Collapsed"/>
+                            <TextBlock x:Name="StatusText" Text="Starting launcher..." Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" FontFamily="Palatino Linotype" FontSize="13.5"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <Button x:Name="SupportButton" Grid.Column="1" Content="Support RetreatUI"
+                                Style="{StaticResource SupportButtonStyle}" Click="SupportButton_Click"/>
+                        <Button x:Name="OpenFolderButton" Grid.Column="3" Content="Open AddOns Folder"
+                                Style="{StaticResource FolderButtonStyle}" IsEnabled="False" Click="OpenFolderButton_Click"/>
+                        <Button x:Name="LaunchButton" Grid.Column="5" Content="Launch CoA"
+                                Style="{StaticResource LaunchButtonStyle}" IsEnabled="False" Click="LaunchButton_Click"/>
+                    </Grid>
                 </Grid>
-            </Grid>
+            </Viewbox>
         </Grid>
     </Border>
 </Window>
