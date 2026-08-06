@@ -9,10 +9,8 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class LauncherUpdateService
 {
-    private const string ReleaseFeedUrl =
-        "https://raw.githubusercontent.com/RetreatUI/RetreatUI-Launcher-Releases/main/feed/launcher-releases.json";
     private const string ApiReleasesUrl =
-        "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher-Releases/releases?per_page=30";
+        "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher/releases?per_page=30";
     private const string ExecutableAssetName = "RetreatUI_Launcher.exe";
     private const string ChecksumAssetName = "RetreatUI_Launcher.exe.sha256";
 
@@ -29,7 +27,7 @@ public sealed class LauncherUpdateService
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.8";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.9";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
@@ -194,58 +192,6 @@ public sealed class LauncherUpdateService
 
     private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
     {
-        Task<List<GitHubRelease>?> feedTask = TryLoadFeedAsync(cancellationToken);
-        Task<List<GitHubRelease>?> apiTask = TryLoadApiAsync(cancellationToken);
-        await Task.WhenAll(feedTask, apiTask);
-
-        List<GitHubRelease>? feedReleases = await feedTask;
-        List<GitHubRelease>? apiReleases = await apiTask;
-        if (feedReleases is null && apiReleases is null)
-        {
-            throw new HttpRequestException(
-                "Neither the launcher release feed nor the GitHub Releases API could be loaded.");
-        }
-
-        Dictionary<string, GitHubRelease> merged = new(StringComparer.OrdinalIgnoreCase);
-        AddReleases(merged, feedReleases);
-        AddReleases(merged, apiReleases);
-        return merged.Values.ToList();
-    }
-
-    private async Task<List<GitHubRelease>?> TryLoadFeedAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            using HttpRequestMessage request = new(HttpMethod.Get, feedUrl);
-            request.Headers.CacheControl = new CacheControlHeaderValue
-            {
-                NoCache = true,
-                NoStore = true
-            };
-            using HttpResponseMessage response = await _httpClient.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            response.EnsureSuccessStatusCode();
-            return await DeserializeReleasesAsync(response, cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return null;
-        }
-    }
-
-    private async Task<List<GitHubRelease>?> TryLoadApiAsync(CancellationToken cancellationToken)
-    {
         try
         {
             using HttpRequestMessage request = new(HttpMethod.Get, ApiReleasesUrl);
@@ -262,35 +208,9 @@ public sealed class LauncherUpdateService
             response.EnsureSuccessStatusCode();
             return await DeserializeReleasesAsync(response, cancellationToken);
         }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return null;
-        }
-    }
-
-    private static void AddReleases(
-        IDictionary<string, GitHubRelease> target,
-        IEnumerable<GitHubRelease>? releases)
-    {
-        if (releases is null)
-        {
-            return;
-        }
-
-        foreach (GitHubRelease release in releases)
-        {
-            if (!string.IsNullOrWhiteSpace(release.TagName))
-            {
-                target[release.TagName] = release;
-            }
+            throw new HttpRequestException("The launcher update request timed out.");
         }
     }
 
