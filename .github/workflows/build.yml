@@ -2,13 +2,6 @@ name: Build RetreatUI Launcher
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
-  pull_request:
-    paths:
-      - "RetreatUI.Launcher/**"
-      - "RetreatUI.Launcher.sln"
-      - ".github/workflows/build.yml"
   push:
     branches:
       - main
@@ -27,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-release:
     runs-on: windows-latest
 
     steps:
@@ -87,19 +80,8 @@ jobs:
           "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath "publish/RetreatUI_Launcher.exe.sha256" -Encoding ascii
           Compress-Archive -Path $exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: RetreatUI-Launcher-win-x64-${{ steps.version.outputs.version }}
-          path: |
-            publish/RetreatUI_Launcher.exe
-            publish/RetreatUI_Launcher.exe.sha256
-            RetreatUI_Launcher_win-x64.zip
-          if-no-files-found: error
-
       - name: Check release state
         id: release
-        if: github.event_name == 'push'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -114,7 +96,7 @@ jobs:
           }
 
       - name: Publish GitHub release
-        if: github.event_name == 'push' && steps.release.outputs.publish == 'true'
+        if: steps.release.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
