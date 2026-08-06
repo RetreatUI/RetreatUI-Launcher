@@ -1,14 +1,20 @@
 name: Validate RetreatUI Launcher
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
+    paths:
+      - "RetreatUI.Launcher/**"
+      - "RetreatUI.Launcher.sln"
+      - ".github/workflows/validate-v0.2.6.yml"
 
 permissions:
   contents: read
+
+concurrency:
+  group: retreatui-launcher-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -28,43 +34,3 @@ jobs:
 
       - name: Build
         run: dotnet build RetreatUI.Launcher.sln --configuration Release --no-restore
-
-      - name: Publish single EXE
-        run: >-
-          dotnet publish RetreatUI.Launcher/RetreatUI.Launcher.csproj
-          --configuration Release
-          --runtime win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          --output publish
-
-      - name: Validate version and create assets
-        shell: pwsh
-        run: |
-          $exe = "publish/RetreatUI_Launcher.exe"
-          if (!(Test-Path -LiteralPath $exe)) { throw "Launcher EXE was not created." }
-
-          [xml]$project = Get-Content -LiteralPath "RetreatUI.Launcher/RetreatUI.Launcher.csproj"
-          $expectedVersion = $project.Project.PropertyGroup.Version | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($expectedVersion)) { throw "Project version was not found." }
-
-          $fileVersion = (Get-Item -LiteralPath $exe).VersionInfo.FileVersion
-          if (!$fileVersion.StartsWith($expectedVersion)) {
-            throw "Unexpected launcher version: $fileVersion (expected $expectedVersion)"
-          }
-
-          $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath "publish/RetreatUI_Launcher.exe.sha256" -Encoding ascii
-          Compress-Archive -Path $exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
-          "LAUNCHER_VERSION=$expectedVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: RetreatUI-Launcher-v${{ env.LAUNCHER_VERSION }}
-          path: |
-            publish/RetreatUI_Launcher.exe
-            publish/RetreatUI_Launcher.exe.sha256
-            RetreatUI_Launcher_win-x64.zip
-          if-no-files-found: error
