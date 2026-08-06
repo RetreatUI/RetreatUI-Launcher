@@ -1,32 +1,39 @@
 # RetreatUI Launcher
 
-Windows updater for **RetreatUI**, built for Project Ascension: Conquest of Azeroth.
+Windows installer and updater for **RetreatUI**, supporting both:
+
+- **Project Ascension: Conquest of Azeroth (CoA)**
+- **World of Warcraft: The Burning Crusade (TBC) Classic / Anniversary**
 
 ## Current version
 
-`0.2.8`
+`0.3.0`
 
 ## Features
 
+- Dedicated game selector for CoA and TBC
+- Separate saved AddOns paths and detected executables for each game
+- Automatic Project Ascension AddOns folder detection
+- Automatic detection of common World of Warcraft Classic / Anniversary folders
+- Product-specific release filtering so a TBC profile can never install a CoA ZIP, or vice versa
 - Custom RetreatUI application icon and in-launcher branding
 - Stable and Beta update channels
 - Clear switching between Stable, Beta and local test builds
 - Automatic release checks through the RetreatUI GitHub releases feed
 - Full Stable/Beta semantic version ordering with hard addon downgrade protection
-- Automatic Project Ascension AddOns folder detection
 - Manual folder selection as a fallback
-- Installed and latest version display
-- Release notes inside the launcher
+- Installed and latest version display per selected game
+- Product-specific release notes inside the launcher
 - One-click RetreatUI installation and updating
-- Automatic RetreatUI updates on the selected channel when Project Ascension is closed
+- Automatic RetreatUI updates on the selected channel when the selected game is closed
 - A discreet Support RetreatUI button linking to the official Ko-fi page
 - Validates the downloaded ZIP, addon versions and installed file copy
 - Automatic backup before replacing addon files
 - Automatic rollback when installation or verification fails
 - Keeps the five newest backups
 - Never touches WoW SavedVariables
-- Opens the AddOns folder
-- Launches Project Ascension when the executable is detected
+- Opens the selected AddOns folder
+- Launches the selected game when its executable is detected
 - Automatic launcher self-updates from the public binary-only release repository
 - SHA-256 verification and executable rollback for launcher updates
 
@@ -37,29 +44,43 @@ The launcher only replaces:
 - `RetreatUI`
 - `RetreatUI_Classes`
 
-## Release requirements
+CoA and TBC use separate game paths, but the same managed addon folder names inside each client's `Interface\AddOns` folder.
 
-Every RetreatUI addon release must include one ZIP asset named like:
+## Addon release requirements
+
+The launcher reads releases from `RetreatUI/RetreatUI-Addon` and selects assets by game edition.
+
+### CoA asset
 
 ```text
 RetreatUI_v1.0.11.zip
 ```
 
-The ZIP must contain these folders at its root:
+### TBC asset
+
+```text
+RetreatUI_TBC_v0.1.0.zip
+```
+
+`RetreatUI-TBC-v0.1.0.zip` is also accepted for compatibility.
+
+Every ZIP must contain these folders at its root:
 
 ```text
 RetreatUI/
 RetreatUI_Classes/
 ```
 
-Both `.toc` files must use the same version as the GitHub release tag.
+Both `.toc` files must use the same version encoded in the asset filename. The release tag may be shared or product-specific; the launcher validates against the selected asset's version.
 
-Stable releases must not be marked as pre-releases.
-Beta releases must be marked as pre-releases and may use tags such as:
+Stable releases must not be marked as pre-releases. Beta releases must be marked as pre-releases and may use versions such as:
 
 ```text
-v1.0.12-beta.1
+1.0.12-beta.1
+0.1.0-beta.1
 ```
+
+A release may contain both CoA and TBC assets. The launcher will only display a release for a game when a compatible asset is present.
 
 ## Launcher release channel
 
@@ -101,19 +122,17 @@ publish\RetreatUI_Launcher.exe
 
 ## Building with GitHub Actions
 
-The included workflow builds the launcher automatically.
-
-For a normal test build:
+Pull requests run a compile validation automatically. For a downloadable test build:
 
 1. Open the repository's **Actions** tab.
 2. Select **Build RetreatUI Launcher**.
-3. Choose **Run workflow**.
+3. Choose **Run workflow** and select the desired branch.
 4. Download the build artifact after the workflow finishes.
 
 For a launcher release, create and push a tag such as:
 
 ```text
-launcher-v0.2.8
+launcher-v0.3.0
 ```
 
 The built EXE, checksum and ZIP are then transferred to the public launcher release repository.
