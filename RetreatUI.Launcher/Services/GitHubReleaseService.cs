@@ -145,6 +145,10 @@ public sealed class GitHubReleaseService
         {
             feedError = ex;
         }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            feedError = ex;
+        }
 
         try
         {
@@ -167,6 +171,10 @@ public sealed class GitHubReleaseService
             apiError = ex;
         }
         catch (JsonException ex)
+        {
+            apiError = ex;
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             apiError = ex;
         }
