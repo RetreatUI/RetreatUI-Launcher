@@ -265,8 +265,7 @@
                                        Foreground="{StaticResource TitleBrush}"
                                        FontFamily="Palatino Linotype"
                                        FontSize="35"
-                                       FontWeight="Normal"
-                                       CharacterSpacing="28"/>
+                                       FontWeight="Normal"/>
                             <TextBlock x:Name="LauncherVersionText"
                                        Text="Launcher"
                                        Margin="2,5,0,0"
@@ -348,8 +347,7 @@
                                     <TextBlock Text="CONQUEST OF AZEROTH"
                                                FontFamily="Palatino Linotype"
                                                FontSize="22"
-                                               FontWeight="Bold"
-                                               CharacterSpacing="8"/>
+                                               FontWeight="Bold"/>
                                     <TextBlock Text="Project Ascension · 21 custom classes"
                                                Margin="0,8,0,0"
                                                Foreground="{StaticResource MutedTextBrush}"
@@ -396,8 +394,7 @@
                                     <TextBlock Text="THE BURNING CRUSADE"
                                                FontFamily="Palatino Linotype"
                                                FontSize="22"
-                                               FontWeight="Bold"
-                                               CharacterSpacing="8"/>
+                                               FontWeight="Bold"/>
                                     <TextBlock Text="Classic / Anniversary client"
                                                Margin="0,8,0,0"
                                                Foreground="{StaticResource MutedTextBrush}"
