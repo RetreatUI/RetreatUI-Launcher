@@ -1,0 +1,51 @@
+name: Apply launcher v0.3.5 rate-limit fix
+
+on:
+  push:
+    branches:
+      - fix/rate-limit-free-feeds-v0.3.5
+    paths:
+      - ".github/workflows/apply-v0.3.5-rate-limit-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rate-limit-free-feeds-v0.3.5
+
+      - name: Write rate-limit-free release services
+        env:
+          ADDON_SERVICE_B64: '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'
+          LAUNCHER_SERVICE_B64: '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'
+        run: |
+          python - <<'PY2'
+          import base64, gzip, os
+          from pathlib import Path
+          files = {
+              'RetreatUI.Launcher/Services/GitHubReleaseService.cs': os.environ['ADDON_SERVICE_B64'],
+              'RetreatUI.Launcher/Services/LauncherUpdateService.cs': os.environ['LAUNCHER_SERVICE_B64'],
+          }
+          for path, payload in files.items():
+              Path(path).write_bytes(gzip.decompress(base64.b64decode(payload)))
+          project = Path('RetreatUI.Launcher/RetreatUI.Launcher.csproj')
+          text = project.read_text()
+          text = text.replace('<Version>0.3.4</Version>', '<Version>0.3.5</Version>')
+          text = text.replace('<FileVersion>0.3.4.0</FileVersion>', '<FileVersion>0.3.5.0</FileVersion>')
+          text = text.replace('<AssemblyVersion>0.3.4.0</AssemblyVersion>', '<AssemblyVersion>0.3.5.0</AssemblyVersion>')
+          project.write_text(text)
+          PY2
+
+      - name: Commit fix
+        run: |
+          git config user.name "Retreat"
+          git config user.email "gaarn94@gmail.com"
+          git add RetreatUI.Launcher/Services/GitHubReleaseService.cs \
+                  RetreatUI.Launcher/Services/LauncherUpdateService.cs \
+                  RetreatUI.Launcher/RetreatUI.Launcher.csproj
+          git commit -m "Use CDN release feeds in launcher v0.3.5"
+          git push origin HEAD:fix/rate-limit-free-feeds-v0.3.5
