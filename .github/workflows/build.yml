@@ -8,11 +8,21 @@ on:
       - "RetreatUI.Launcher.sln"
       - ".github/workflows/build.yml"
   push:
+    branches:
+      - main
     tags:
       - "launcher-v*"
+    paths:
+      - "RetreatUI.Launcher/**"
+      - "RetreatUI.Launcher.sln"
+      - ".github/workflows/build.yml"
 
 permissions:
   contents: write
+
+concurrency:
+  group: retreatui-launcher-release
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -22,6 +32,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read launcher version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content -LiteralPath "RetreatUI.Launcher/RetreatUI.Launcher.csproj"
+          $version = [string]($project.Project.PropertyGroup.Version | Select-Object -First 1)
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "The launcher project has no Version value."
+          }
+
+          $tag = if ($env:GITHUB_REF -like "refs/tags/launcher-v*") {
+            $env:GITHUB_REF_NAME
+          } else {
+            "launcher-v$version"
+          }
+
+          if ($tag -ne "launcher-v$version") {
+            throw "Tag $tag does not match project version $version."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -30,12 +63,16 @@ jobs:
       - name: Restore
         run: dotnet restore RetreatUI.Launcher.sln
 
+      - name: Build validation
+        run: dotnet build RetreatUI.Launcher.sln --configuration Release --no-restore
+
       - name: Publish single EXE
         run: >-
           dotnet publish RetreatUI.Launcher/RetreatUI.Launcher.csproj
           --configuration Release
           --runtime win-x64
           --self-contained true
+          --no-restore
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           --output publish
@@ -51,18 +88,39 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RetreatUI-Launcher-win-x64
+          name: RetreatUI-Launcher-win-x64-${{ steps.version.outputs.version }}
           path: |
             publish/RetreatUI_Launcher.exe
             publish/RetreatUI_Launcher.exe.sha256
             RetreatUI_Launcher_win-x64.zip
 
-      - name: Publish GitHub release asset
-        if: startsWith(github.ref, 'refs/tags/launcher-v')
+      - name: Check release state
+        id: release
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "publish=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Release $env:TAG already exists; validation succeeded and publishing is skipped."
+          } else {
+            "publish=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Publish GitHub release
+        if: github.event_name == 'push' && steps.release.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: RetreatUI Launcher v${{ steps.version.outputs.version }}
+          body: |
+            Launcher ${{ steps.version.outputs.version }} improves update reliability by comparing the public release feed with the live GitHub Releases API, preventing a valid but stale feed from hiding newly published RetreatUI updates.
           files: |
             publish/RetreatUI_Launcher.exe
             publish/RetreatUI_Launcher.exe.sha256
             RetreatUI_Launcher_win-x64.zip
-          generate_release_notes: true
+          make_latest: true
