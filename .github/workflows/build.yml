@@ -1,12 +1,15 @@
-name: Build RetreatUI Launcher
+name: Launcher CI and Release
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "RetreatUI.Launcher/**"
+      - "RetreatUI.Launcher.sln"
+      - ".github/workflows/build.yml"
   push:
-    branches:
-      - main
-    tags:
-      - "launcher-v*"
+    branches: [main]
     paths:
       - "RetreatUI.Launcher/**"
       - "RetreatUI.Launcher.sln"
@@ -16,39 +19,15 @@ permissions:
   contents: write
 
 concurrency:
-  group: retreatui-launcher-release
+  group: launcher-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-release:
+  validate:
     runs-on: windows-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Read launcher version
-        id: version
-        shell: pwsh
-        run: |
-          [xml]$project = Get-Content -LiteralPath "RetreatUI.Launcher/RetreatUI.Launcher.csproj"
-          $version = [string]($project.Project.PropertyGroup.Version | Select-Object -First 1)
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw "The launcher project has no Version value."
-          }
-
-          $tag = if ($env:GITHUB_REF -like "refs/tags/launcher-v*") {
-            $env:GITHUB_REF_NAME
-          } else {
-            "launcher-v$version"
-          }
-
-          if ($tag -ne "launcher-v$version") {
-            throw "Tag $tag does not match project version $version."
-          }
-
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "tag=$tag" >> $env:GITHUB_OUTPUT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -58,8 +37,35 @@ jobs:
       - name: Restore
         run: dotnet restore RetreatUI.Launcher.sln
 
-      - name: Build validation
+      - name: Build
         run: dotnet build RetreatUI.Launcher.sln --configuration Release --no-restore
+
+  release:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Read and validate launcher version
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content -LiteralPath "RetreatUI.Launcher/RetreatUI.Launcher.csproj"
+          $version = [string]($project.Project.PropertyGroup.Version | Select-Object -First 1)
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "Launcher Version is missing." }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid launcher version: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=launcher-v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore RetreatUI.Launcher.sln
 
       - name: Publish single EXE
         run: >-
@@ -72,40 +78,75 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           --output publish
 
-      - name: Create checksum and ZIP
+      - name: Validate binary and create release assets
         shell: pwsh
         run: |
+          $version = "${{ steps.version.outputs.version }}"
           $exe = "publish/RetreatUI_Launcher.exe"
+          if (!(Test-Path -LiteralPath $exe)) { throw "Launcher EXE was not created." }
+
+          $fileVersion = (Get-Item -LiteralPath $exe).VersionInfo.FileVersion
+          if (!$fileVersion.StartsWith($version)) {
+            throw "Binary version $fileVersion does not match project version $version."
+          }
+
           $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  RetreatUI_Launcher.exe" | Set-Content -LiteralPath "publish/RetreatUI_Launcher.exe.sha256" -Encoding ascii
-          Compress-Archive -Path $exe -DestinationPath RetreatUI_Launcher_win-x64.zip -Force
+          Compress-Archive -Path $exe -DestinationPath "publish/RetreatUI_Launcher_win-x64.zip" -Force
 
-      - name: Check release state
-        id: release
+          if ((Get-Item -LiteralPath $exe).Length -lt 1000000) { throw "Launcher EXE is unexpectedly small." }
+          if ((Get-Item -LiteralPath "publish/RetreatUI_Launcher_win-x64.zip").Length -lt 1000000) { throw "Launcher ZIP is unexpectedly small." }
+
+      - name: Publish verified GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:TAG already exists. Validation succeeded; no duplicate release created."
+            exit 0
+          }
+
+          @"
+          ## RetreatUI Launcher $env:VERSION
+
+          - Removes blurred edition-card artwork and keeps selected text sharp.
+          - Corrects the Burning Crusade label.
+          - Uses only verified GitHub release assets for Latest on channel.
+          - Compares public feeds with live GitHub releases and rejects stale or invalid entries.
+          - Includes SHA-256 verification assets.
+          "@ | Set-Content -LiteralPath release-notes.md -Encoding utf8
+
+          gh release create $env:TAG `
+            "publish/RetreatUI_Launcher.exe" `
+            "publish/RetreatUI_Launcher.exe.sha256" `
+            "publish/RetreatUI_Launcher_win-x64.zip" `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title "RetreatUI Launcher v$env:VERSION" `
+            --notes-file release-notes.md `
+            --latest
+
+      - name: Verify public release assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) {
-            "publish=false" >> $env:GITHUB_OUTPUT
-            Write-Host "Release $env:TAG already exists; validation succeeded and publishing is skipped."
-          } else {
-            "publish=true" >> $env:GITHUB_OUTPUT
+          $release = gh api "/repos/$env:GITHUB_REPOSITORY/releases/tags/$env:TAG" | ConvertFrom-Json
+          $required = @(
+            "RetreatUI_Launcher.exe",
+            "RetreatUI_Launcher.exe.sha256",
+            "RetreatUI_Launcher_win-x64.zip"
+          )
+          foreach ($name in $required) {
+            $asset = $release.assets | Where-Object { $_.name -eq $name }
+            if (!$asset) { throw "Missing release asset: $name" }
+            if ([int64]$asset.size -le 0) { throw "Release asset has invalid size: $name" }
+            if ($asset.browser_download_url -notlike "*/releases/download/*") {
+              throw "Release asset has invalid download URL: $name"
+            }
           }
-
-      - name: Publish GitHub release
-        if: steps.release.outputs.publish == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: RetreatUI Launcher v${{ steps.version.outputs.version }}
-          body: |
-            Launcher ${{ steps.version.outputs.version }} fixes the Burning Crusade label, removes blurred banner artwork, shows only verified addon release assets as Latest on channel, and compares the public feed against live GitHub releases.
-          files: |
-            publish/RetreatUI_Launcher.exe
-            publish/RetreatUI_Launcher.exe.sha256
-            RetreatUI_Launcher_win-x64.zip
-          make_latest: true
