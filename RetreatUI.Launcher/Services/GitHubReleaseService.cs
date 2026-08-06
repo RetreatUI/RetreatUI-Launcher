@@ -14,8 +14,10 @@ public sealed class GitHubReleaseService
 {
     private const string ReleaseFeedUrl =
         "https://raw.githubusercontent.com/RetreatUI/RetreatUI-Launcher-Releases/main/feed/addon-releases.json";
-    private const string ApiReleasesUrl =
+    private const string AddonApiReleasesUrl =
         "https://api.github.com/repos/RetreatUI/RetreatUI-Addon/releases?per_page=100";
+    private const string PackageApiReleasesUrl =
+        "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher-Releases/releases?per_page=100";
 
     private static readonly string[] TbcAssetPrefixes =
     {
@@ -32,7 +34,7 @@ public sealed class GitHubReleaseService
             Timeout = TimeSpan.FromSeconds(30)
         };
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.3.7"));
+            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.3.8"));
     }
 
     public async Task<GitHubRelease?> GetLatestReleaseAsync(
@@ -57,7 +59,7 @@ public sealed class GitHubReleaseService
 
     public static GitHubAsset? FindRetreatUiAsset(GitHubRelease release, GameEdition edition)
     {
-        return release.Assets.FirstOrDefault(asset => IsCompatibleAsset(asset.Name, edition));
+        return release.Assets.FirstOrDefault(asset => IsCompatibleAsset(asset, edition));
     }
 
     public static string GetAssetVersion(GitHubRelease release, GameEdition edition)
@@ -90,6 +92,12 @@ public sealed class GitHubReleaseService
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        if (!IsVerifiedReleaseAsset(asset))
+        {
+            throw new InvalidOperationException(
+                "The selected package is not a verified GitHub release asset.");
+        }
+
         using HttpResponseMessage response = await _httpClient.GetAsync(
             asset.BrowserDownloadUrl,
             HttpCompletionOption.ResponseHeadersRead,
@@ -112,88 +120,102 @@ public sealed class GitHubReleaseService
                 progress?.Report(received * 100d / total.Value);
             }
         }
+
+        if (received <= 0)
+        {
+            throw new InvalidOperationException("The downloaded addon package was empty.");
+        }
     }
 
     private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
     {
-        List<GitHubRelease>? feedReleases = null;
-        List<GitHubRelease>? apiReleases = null;
-        Exception? feedError = null;
-        Exception? apiError = null;
+        Task<List<GitHubRelease>?> feedTask = TryLoadFeedAsync(cancellationToken);
+        Task<List<GitHubRelease>?> addonApiTask = TryLoadApiAsync(AddonApiReleasesUrl, cancellationToken);
+        Task<List<GitHubRelease>?> packageApiTask = TryLoadApiAsync(PackageApiReleasesUrl, cancellationToken);
 
-        try
-        {
-            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            using HttpRequestMessage feedRequest = new(HttpMethod.Get, feedUrl);
-            feedRequest.Headers.CacheControl = new CacheControlHeaderValue
-            {
-                NoCache = true,
-                NoStore = true
-            };
-            using HttpResponseMessage feedResponse = await _httpClient.SendAsync(
-                feedRequest,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            feedResponse.EnsureSuccessStatusCode();
-            feedReleases = await DeserializeReleasesAsync(feedResponse, cancellationToken);
-        }
-        catch (HttpRequestException ex)
-        {
-            feedError = ex;
-        }
-        catch (JsonException ex)
-        {
-            feedError = ex;
-        }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            feedError = ex;
-        }
+        await Task.WhenAll(feedTask, addonApiTask, packageApiTask);
 
-        try
-        {
-            using HttpRequestMessage apiRequest = new(HttpMethod.Get, ApiReleasesUrl);
-            apiRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            apiRequest.Headers.CacheControl = new CacheControlHeaderValue
-            {
-                NoCache = true,
-                NoStore = true
-            };
-            using HttpResponseMessage apiResponse = await _httpClient.SendAsync(
-                apiRequest,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            apiResponse.EnsureSuccessStatusCode();
-            apiReleases = await DeserializeReleasesAsync(apiResponse, cancellationToken);
-        }
-        catch (HttpRequestException ex)
-        {
-            apiError = ex;
-        }
-        catch (JsonException ex)
-        {
-            apiError = ex;
-        }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            apiError = ex;
-        }
+        List<GitHubRelease>? feedReleases = await feedTask;
+        List<GitHubRelease>? addonApiReleases = await addonApiTask;
+        List<GitHubRelease>? packageApiReleases = await packageApiTask;
 
-        if (feedReleases is null && apiReleases is null)
+        if (feedReleases is null && addonApiReleases is null && packageApiReleases is null)
         {
             throw new HttpRequestException(
-                "Neither the RetreatUI release feed nor the GitHub Releases API could be loaded.",
-                apiError ?? feedError);
+                "The RetreatUI release feed and both GitHub release sources were unavailable.");
         }
 
         Dictionary<string, GitHubRelease> merged = new(StringComparer.OrdinalIgnoreCase);
         AddReleases(merged, feedReleases);
-
-        // GitHub is authoritative when both sources contain the same tag. This also
-        // means a valid but stale CDN feed can never hide a newly published release.
-        AddReleases(merged, apiReleases);
-
+        AddReleases(merged, addonApiReleases);
+        AddReleases(merged, packageApiReleases);
         return merged.Values.ToList();
+    }
+
+    private async Task<List<GitHubRelease>?> TryLoadFeedAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            using HttpRequestMessage request = new(HttpMethod.Get, feedUrl);
+            request.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await DeserializeReleasesAsync(response, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
+    private async Task<List<GitHubRelease>?> TryLoadApiAsync(
+        string url,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpRequestMessage request = new(HttpMethod.Get, url);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            request.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await DeserializeReleasesAsync(response, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     private static void AddReleases(
@@ -209,7 +231,16 @@ public sealed class GitHubReleaseService
         {
             if (!string.IsNullOrWhiteSpace(release.TagName))
             {
-                target[release.TagName] = release;
+                string key = release.TagName;
+                if (FindRetreatUiAsset(release, GameEdition.CoA) is GitHubAsset coaAsset)
+                {
+                    key += "|coa|" + coaAsset.Name;
+                }
+                else if (FindRetreatUiAsset(release, GameEdition.Tbc) is GitHubAsset tbcAsset)
+                {
+                    key += "|tbc|" + tbcAsset.Name;
+                }
+                target[key] = release;
             }
         }
     }
@@ -224,9 +255,10 @@ public sealed class GitHubReleaseService
             cancellationToken: cancellationToken) ?? new List<GitHubRelease>();
     }
 
-    private static bool IsCompatibleAsset(string assetName, GameEdition edition)
+    private static bool IsCompatibleAsset(GitHubAsset asset, GameEdition edition)
     {
-        if (!assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        if (!IsVerifiedReleaseAsset(asset)
+            || !asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -234,11 +266,32 @@ public sealed class GitHubReleaseService
         if (edition == GameEdition.Tbc)
         {
             return TbcAssetPrefixes.Any(prefix =>
-                assetName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+                asset.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
         }
 
-        return assetName.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase)
-               && !assetName.Contains("TBC", StringComparison.OrdinalIgnoreCase);
+        return asset.Name.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase)
+               && !asset.Name.Contains("TBC", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsVerifiedReleaseAsset(GitHubAsset asset)
+    {
+        if (asset is null
+            || asset.Size <= 0
+            || string.IsNullOrWhiteSpace(asset.Name)
+            || string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return uri.AbsolutePath.Contains("/releases/download/", StringComparison.OrdinalIgnoreCase)
+               && !uri.AbsolutePath.Contains("/archive/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeVersion(string version) =>
