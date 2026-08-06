@@ -29,17 +29,13 @@ public sealed class LauncherUpdateService
     }
 
     public string CurrentVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.5";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.8";
 
     public async Task<LauncherUpdate?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
         List<GitHubRelease> releases = await LoadReleasesAsync(cancellationToken);
-        if (releases.Count == 0)
-        {
-            return null;
-        }
-
         LauncherUpdate? bestUpdate = null;
+
         foreach (GitHubRelease release in releases)
         {
             if (release.Draft || release.Prerelease)
@@ -48,9 +44,11 @@ public sealed class LauncherUpdateService
             }
 
             GitHubAsset? executableAsset = release.Assets.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, ExecutableAssetName, StringComparison.OrdinalIgnoreCase));
+                string.Equals(candidate.Name, ExecutableAssetName, StringComparison.OrdinalIgnoreCase)
+                && IsVerifiedLauncherAsset(candidate));
             GitHubAsset? checksumAsset = release.Assets.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, ChecksumAssetName, StringComparison.OrdinalIgnoreCase));
+                string.Equals(candidate.Name, ChecksumAssetName, StringComparison.OrdinalIgnoreCase)
+                && IsVerifiedLauncherAsset(candidate));
 
             if (executableAsset is null || checksumAsset is null)
             {
@@ -85,6 +83,13 @@ public sealed class LauncherUpdateService
         {
             throw new InvalidOperationException(
                 $"Launcher {update.Version} is not newer than the installed launcher {CurrentVersion}.");
+        }
+
+        if (!IsVerifiedLauncherAsset(update.Asset)
+            || !IsVerifiedLauncherAsset(update.ChecksumAsset))
+        {
+            throw new InvalidOperationException(
+                "The selected launcher update is not backed by verified GitHub release assets.");
         }
 
         string currentExecutable = Environment.ProcessPath
@@ -189,36 +194,104 @@ public sealed class LauncherUpdateService
 
     private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
     {
+        Task<List<GitHubRelease>?> feedTask = TryLoadFeedAsync(cancellationToken);
+        Task<List<GitHubRelease>?> apiTask = TryLoadApiAsync(cancellationToken);
+        await Task.WhenAll(feedTask, apiTask);
+
+        List<GitHubRelease>? feedReleases = await feedTask;
+        List<GitHubRelease>? apiReleases = await apiTask;
+        if (feedReleases is null && apiReleases is null)
+        {
+            throw new HttpRequestException(
+                "Neither the launcher release feed nor the GitHub Releases API could be loaded.");
+        }
+
+        Dictionary<string, GitHubRelease> merged = new(StringComparer.OrdinalIgnoreCase);
+        AddReleases(merged, feedReleases);
+        AddReleases(merged, apiReleases);
+        return merged.Values.ToList();
+    }
+
+    private async Task<List<GitHubRelease>?> TryLoadFeedAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-            using HttpResponseMessage feedResponse = await _httpClient.GetAsync(
-                feedUrl,
+            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            using HttpRequestMessage request = new(HttpMethod.Get, feedUrl);
+            request.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
-
-            if (feedResponse.IsSuccessStatusCode)
-            {
-                return await DeserializeReleasesAsync(feedResponse, cancellationToken);
-            }
+            response.EnsureSuccessStatusCode();
+            return await DeserializeReleasesAsync(response, cancellationToken);
         }
         catch (HttpRequestException)
         {
-            // Fall back to the GitHub API only when the CDN feed is unavailable.
+            return null;
         }
         catch (JsonException)
         {
-            // Fall back to the GitHub API if the feed is temporarily malformed.
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
+    private async Task<List<GitHubRelease>?> TryLoadApiAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpRequestMessage request = new(HttpMethod.Get, ApiReleasesUrl);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            request.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await DeserializeReleasesAsync(response, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
+    private static void AddReleases(
+        IDictionary<string, GitHubRelease> target,
+        IEnumerable<GitHubRelease>? releases)
+    {
+        if (releases is null)
+        {
+            return;
         }
 
-        using HttpRequestMessage apiRequest = new(HttpMethod.Get, ApiReleasesUrl);
-        apiRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using HttpResponseMessage apiResponse = await _httpClient.SendAsync(
-            apiRequest,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        apiResponse.EnsureSuccessStatusCode();
-        return await DeserializeReleasesAsync(apiResponse, cancellationToken);
+        foreach (GitHubRelease release in releases)
+        {
+            if (!string.IsNullOrWhiteSpace(release.TagName))
+            {
+                target[release.TagName] = release;
+            }
+        }
     }
 
     private static async Task<List<GitHubRelease>> DeserializeReleasesAsync(
@@ -263,6 +336,32 @@ public sealed class LauncherUpdateService
                 progress?.Report(received * 100d / total.Value);
             }
         }
+
+        if (received <= 0)
+        {
+            throw new InvalidOperationException("The downloaded launcher asset was empty.");
+        }
+    }
+
+    private static bool IsVerifiedLauncherAsset(GitHubAsset asset)
+    {
+        if (asset is null
+            || asset.Size <= 0
+            || string.IsNullOrWhiteSpace(asset.Name)
+            || string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return uri.AbsolutePath.Contains("/releases/download/", StringComparison.OrdinalIgnoreCase)
+               && !uri.AbsolutePath.Contains("/archive/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<string> ComputeSha256Async(
