@@ -16,10 +16,12 @@ public partial class MainWindow : Window
     private readonly LauncherUpdateService _launcherUpdateService = new();
     private readonly GamePathService _gamePathService = new();
     private readonly AddonInstallerService _installerService = new();
+    private readonly GameProcessService _gameProcessService = new();
 
     private LauncherSettings _settings = new();
     private GitHubRelease? _latestRelease;
     private LauncherUpdate? _launcherUpdate;
+    private GameEdition _selectedEdition = GameEdition.CoA;
     private AddonAction _currentAddonAction = AddonAction.None;
     private bool _isBusy;
     private bool _isInitialized;
@@ -32,28 +34,74 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
     }
 
+    private string ProductName => _selectedEdition == GameEdition.CoA
+        ? "Conquest of Azeroth"
+        : "The Burning Crusade";
+
+    private string ProductShortName => _selectedEdition == GameEdition.CoA ? "CoA" : "TBC";
+
+    private string CurrentAddOnsPath
+    {
+        get => _selectedEdition == GameEdition.CoA
+            ? _settings.CoAAddOnsPath
+            : _settings.TbcAddOnsPath;
+        set
+        {
+            if (_selectedEdition == GameEdition.CoA)
+            {
+                _settings.CoAAddOnsPath = value;
+            }
+            else
+            {
+                _settings.TbcAddOnsPath = value;
+            }
+        }
+    }
+
+    private string CurrentGameExecutablePath
+    {
+        get => _selectedEdition == GameEdition.CoA
+            ? _settings.CoAGameExecutablePath
+            : _settings.TbcGameExecutablePath;
+        set
+        {
+            if (_selectedEdition == GameEdition.CoA)
+            {
+                _settings.CoAGameExecutablePath = value;
+            }
+            else
+            {
+                _settings.TbcGameExecutablePath = value;
+            }
+        }
+    }
+
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         LauncherVersionText.Text = $"Launcher v{_launcherUpdateService.CurrentVersion}";
         _settings = await _settingsService.LoadAsync();
+        MigrateLegacySettings();
 
-        if (string.IsNullOrWhiteSpace(_settings.AddOnsPath)
-            || !_gamePathService.HasValidAddOnsPath(_settings.AddOnsPath))
-        {
-            _settings.AddOnsPath = _gamePathService.AutoDetectAddOnsPath() ?? string.Empty;
-        }
+        _selectedEdition = Enum.TryParse(
+            _settings.SelectedEdition,
+            ignoreCase: true,
+            out GameEdition savedEdition)
+            ? savedEdition
+            : GameEdition.CoA;
 
-        if (!string.IsNullOrWhiteSpace(_settings.AddOnsPath)
-            && string.IsNullOrWhiteSpace(_settings.GameExecutablePath))
-        {
-            _settings.GameExecutablePath = _gamePathService.FindGameExecutable(_settings.AddOnsPath) ?? string.Empty;
-        }
+        EnsureDetectedPaths(GameEdition.CoA);
+        EnsureDetectedPaths(GameEdition.Tbc);
 
+        CoARadio.IsChecked = _selectedEdition == GameEdition.CoA;
+        TbcRadio.IsChecked = _selectedEdition == GameEdition.Tbc;
         BetaRadio.IsChecked = _settings.IncludeBeta;
         StableRadio.IsChecked = !_settings.IncludeBeta;
         _isInitialized = true;
 
+        ApplyEditionVisuals();
         UpdatePathDisplay();
+        await _settingsService.SaveAsync(_settings);
+
         await CheckLauncherUpdateAsync();
         if (TryInstallLauncherUpdateAutomatically())
         {
@@ -62,6 +110,64 @@ public partial class MainWindow : Window
 
         await RefreshAsync();
         TryInstallAddonUpdateAutomatically();
+    }
+
+    private void MigrateLegacySettings()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.CoAAddOnsPath)
+            && !string.IsNullOrWhiteSpace(_settings.AddOnsPath))
+        {
+            _settings.CoAAddOnsPath = _settings.AddOnsPath;
+        }
+
+        if (string.IsNullOrWhiteSpace(_settings.CoAGameExecutablePath)
+            && !string.IsNullOrWhiteSpace(_settings.GameExecutablePath))
+        {
+            _settings.CoAGameExecutablePath = _settings.GameExecutablePath;
+        }
+    }
+
+    private void EnsureDetectedPaths(GameEdition edition)
+    {
+        string addOnsPath = edition == GameEdition.CoA
+            ? _settings.CoAAddOnsPath
+            : _settings.TbcAddOnsPath;
+
+        if (string.IsNullOrWhiteSpace(addOnsPath)
+            || !_gamePathService.HasValidAddOnsPath(addOnsPath))
+        {
+            addOnsPath = _gamePathService.AutoDetectAddOnsPath(edition) ?? string.Empty;
+            if (edition == GameEdition.CoA)
+            {
+                _settings.CoAAddOnsPath = addOnsPath;
+            }
+            else
+            {
+                _settings.TbcAddOnsPath = addOnsPath;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(addOnsPath))
+        {
+            return;
+        }
+
+        string executablePath = edition == GameEdition.CoA
+            ? _settings.CoAGameExecutablePath
+            : _settings.TbcGameExecutablePath;
+
+        if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+        {
+            executablePath = _gamePathService.FindGameExecutable(addOnsPath, edition) ?? string.Empty;
+            if (edition == GameEdition.CoA)
+            {
+                _settings.CoAGameExecutablePath = executablePath;
+            }
+            else
+            {
+                _settings.TbcGameExecutablePath = executablePath;
+            }
+        }
     }
 
     private async Task RefreshAsync()
@@ -73,32 +179,46 @@ public partial class MainWindow : Window
 
         SetBusy(true);
         _currentAddonAction = AddonAction.None;
-        SetStatus("Checking for updates...", StatusKind.Neutral);
+        SetStatus($"Checking {ProductShortName} for updates...", StatusKind.Neutral);
 
         try
         {
             UpdateInstalledVersion();
-            _latestRelease = await _releaseService.GetLatestReleaseAsync(_settings.IncludeBeta);
+            _latestRelease = await _releaseService.GetLatestReleaseAsync(
+                _selectedEdition,
+                _settings.IncludeBeta);
 
             if (_latestRelease is null)
             {
-                LatestVersionText.Text = "Unavailable";
-                ReleaseNotesText.Text = "No compatible RetreatUI release asset was found.";
-                UpdateButton.Content = "NO RELEASE FOUND";
+                LatestVersionText.Text = _selectedEdition == GameEdition.Tbc
+                    ? "Not published"
+                    : "Unavailable";
+                ReleaseNotesText.Text = _selectedEdition == GameEdition.Tbc
+                    ? "No TBC package has been published on the selected channel yet. " +
+                      "The launcher will automatically detect releases containing a " +
+                      "RetreatUI_TBC_v<version>.zip asset without ever falling back to a CoA package."
+                    : "No compatible CoA release asset was found.";
+                UpdateButton.Content = _selectedEdition == GameEdition.Tbc
+                    ? "TBC BUILD NOT PUBLISHED"
+                    : "NO RELEASE FOUND";
                 UpdateButton.IsEnabled = false;
-                SetStatus("No compatible release found.", StatusKind.Error);
+                SetStatus(
+                    _selectedEdition == GameEdition.Tbc
+                        ? "TBC is configured, but no compatible package is published yet."
+                        : "No compatible CoA release found.",
+                    _selectedEdition == GameEdition.Tbc ? StatusKind.Neutral : StatusKind.Error);
+                UpdateProductControls();
                 return;
             }
 
-            string latestVersion = NormalizeVersion(_latestRelease.TagName);
+            string latestVersion = GitHubReleaseService.GetAssetVersion(_latestRelease, _selectedEdition);
             LatestVersionText.Text = latestVersion;
             ReleaseNotesText.Text = string.IsNullOrWhiteSpace(_latestRelease.Body)
-                ? "No release notes were provided."
+                ? $"No {ProductShortName} release notes were provided."
                 : _latestRelease.Body;
 
-            bool validPath = _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
-            OpenFolderButton.IsEnabled = validPath;
-            LaunchButton.IsEnabled = File.Exists(_settings.GameExecutablePath);
+            bool validPath = _gamePathService.HasValidAddOnsPath(CurrentAddOnsPath);
+            UpdateProductControls();
             ConfigureAddonAction(InstalledVersionText.Text, latestVersion, validPath);
         }
         catch (HttpRequestException ex)
@@ -127,9 +247,11 @@ public partial class MainWindow : Window
         {
             SetAddonAction(
                 AddonAction.Install,
-                "INSTALL RETREATUI",
+                $"INSTALL RETREATUI FOR {ProductShortName.ToUpperInvariant()}",
                 validPath,
-                validPath ? "RetreatUI is ready to install." : "Choose your AddOns folder.");
+                validPath
+                    ? $"RetreatUI for {ProductShortName} is ready to install."
+                    : $"Choose your {ProductShortName} AddOns folder.");
             return;
         }
 
@@ -137,9 +259,9 @@ public partial class MainWindow : Window
         {
             SetAddonAction(
                 AddonAction.None,
-                "RETREATUI IS UP TO DATE",
+                $"{ProductShortName.ToUpperInvariant()} IS UP TO DATE",
                 false,
-                $"RetreatUI {installed} is up to date.",
+                $"RetreatUI {ProductShortName} {installed} is up to date.",
                 StatusKind.Success);
             return;
         }
@@ -157,7 +279,7 @@ public partial class MainWindow : Window
                     AddonAction.Update,
                     $"UPDATE TO STABLE {latestVersion.ToUpperInvariant()}",
                     validPath,
-                    validPath ? $"Stable RetreatUI {latestVersion} is available." : "Choose your AddOns folder.");
+                    validPath ? $"Stable {ProductShortName} {latestVersion} is available." : "Choose your AddOns folder.");
             }
             else
             {
@@ -178,7 +300,7 @@ public partial class MainWindow : Window
                 AddonAction.SwitchToBeta,
                 $"SWITCH TO BETA {latestVersion.ToUpperInvariant()}",
                 validPath,
-                validPath ? $"Beta RetreatUI {latestVersion} is available." : "Choose your AddOns folder.");
+                validPath ? $"Beta {ProductShortName} {latestVersion} is available." : "Choose your AddOns folder.");
             return;
         }
 
@@ -186,9 +308,9 @@ public partial class MainWindow : Window
         {
             SetAddonAction(
                 AddonAction.None,
-                "RETREATUI IS UP TO DATE",
+                $"{ProductShortName.ToUpperInvariant()} IS UP TO DATE",
                 false,
-                $"RetreatUI {installed} is up to date.",
+                $"RetreatUI {ProductShortName} {installed} is up to date.",
                 StatusKind.Success);
             return;
         }
@@ -199,16 +321,16 @@ public partial class MainWindow : Window
                 AddonAction.None,
                 "INSTALLED VERSION IS NEWER",
                 false,
-                $"RetreatUI {installed} is newer than the latest selected-channel release.",
+                $"RetreatUI {ProductShortName} {installed} is newer than the latest selected-channel release.",
                 StatusKind.Neutral);
             return;
         }
 
         SetAddonAction(
             AddonAction.Update,
-            $"UPDATE TO {latestVersion.ToUpperInvariant()}",
+            $"UPDATE {ProductShortName.ToUpperInvariant()} TO {latestVersion.ToUpperInvariant()}",
             validPath,
-            validPath ? $"RetreatUI {latestVersion} is available." : "Choose your AddOns folder.");
+            validPath ? $"RetreatUI {ProductShortName} {latestVersion} is available." : "Choose your AddOns folder.");
     }
 
     private void SetAddonAction(
@@ -237,36 +359,37 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!_gamePathService.HasValidAddOnsPath(_settings.AddOnsPath))
+        if (!_gamePathService.HasValidAddOnsPath(CurrentAddOnsPath))
         {
             MessageBox.Show(
                 this,
-                "Choose the Project Ascension Interface\\AddOns folder first.",
+                $"Choose the {ProductName} Interface\\AddOns folder first.",
                 "RetreatUI Launcher",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
         }
 
-        if (_installerService.IsGameRunning())
+        if (_gameProcessService.IsGameRunning(_selectedEdition))
         {
             MessageBox.Show(
                 this,
-                "Close Project Ascension before updating RetreatUI.",
-                "Project Ascension is running",
+                $"Close {ProductName} before updating RetreatUI.",
+                $"{ProductName} is running",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
         }
 
+        string latestVersion = GitHubReleaseService.GetAssetVersion(_latestRelease, _selectedEdition);
         if (_currentAddonAction is AddonAction.SwitchToStable or AddonAction.SwitchToBeta)
         {
             string channel = _currentAddonAction == AddonAction.SwitchToStable ? "Stable" : "Beta";
             MessageBoxResult confirmation = MessageBox.Show(
                 this,
-                $"This will replace the currently installed RetreatUI build with {channel} " +
-                $"{NormalizeVersion(_latestRelease.TagName)}. Your current addon folders will be backed up first.",
-                $"Switch to {channel}?",
+                $"This will replace the currently installed {ProductShortName} build with {channel} " +
+                $"{latestVersion}. Your current addon folders will be backed up first.",
+                $"Switch {ProductShortName} to {channel}?",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
             if (confirmation != MessageBoxResult.Yes)
@@ -275,16 +398,17 @@ public partial class MainWindow : Window
             }
         }
 
-        GitHubAsset? asset = GitHubReleaseService.FindRetreatUiAsset(_latestRelease);
+        GitHubAsset? asset = GitHubReleaseService.FindRetreatUiAsset(_latestRelease, _selectedEdition);
         if (asset is null)
         {
-            MessageBox.Show(this, "The selected release has no RetreatUI ZIP asset.", "RetreatUI Launcher");
+            MessageBox.Show(
+                this,
+                $"The selected release has no compatible {ProductShortName} ZIP asset.",
+                "RetreatUI Launcher");
             return;
         }
 
         AddonAction completedAction = _currentAddonAction;
-        string latestVersion = NormalizeVersion(_latestRelease.TagName);
-
         if (_currentAddonAction == AddonAction.Update
             && AddonVersion.Compare(latestVersion, InstalledVersionText.Text) <= 0)
         {
@@ -292,14 +416,14 @@ public partial class MainWindow : Window
             UpdateButton.Content = "INSTALLED VERSION IS NEWER";
             UpdateButton.IsEnabled = false;
             SetStatus(
-                $"RetreatUI {InstalledVersionText.Text} is newer than {latestVersion}. Downgrade blocked.",
+                $"RetreatUI {ProductShortName} {InstalledVersionText.Text} is newer than {latestVersion}. Downgrade blocked.",
                 StatusKind.Neutral);
             return;
         }
 
         string tempDirectory = Path.Combine(Path.GetTempPath(), "RetreatUI-Launcher");
         Directory.CreateDirectory(tempDirectory);
-        string zipPath = Path.Combine(tempDirectory, $"{Guid.NewGuid():N}.zip");
+        string zipPath = Path.Combine(tempDirectory, $"{ProductShortName}-{Guid.NewGuid():N}.zip");
 
         SetBusy(true);
         DownloadProgress.Value = 0;
@@ -314,7 +438,7 @@ public partial class MainWindow : Window
             Progress<string> installationStatus = new(message => SetStatus(message, StatusKind.Neutral));
             InstallResult result = await _installerService.InstallAsync(
                 zipPath,
-                _settings.AddOnsPath,
+                CurrentAddOnsPath,
                 latestVersion,
                 installationStatus);
 
@@ -325,27 +449,27 @@ public partial class MainWindow : Window
 
             UpdateInstalledVersion();
             _currentAddonAction = AddonAction.None;
-            UpdateButton.Content = "RETREATUI IS UP TO DATE";
+            UpdateButton.Content = $"{ProductShortName.ToUpperInvariant()} IS UP TO DATE";
             UpdateButton.IsEnabled = false;
 
             (string title, string message, string status) = completedAction switch
             {
                 AddonAction.Install => (
                     "Installation complete",
-                    "RetreatUI was installed successfully.",
-                    $"RetreatUI {InstalledVersionText.Text} installed successfully."),
+                    $"RetreatUI for {ProductName} was installed successfully.",
+                    $"RetreatUI {ProductShortName} {InstalledVersionText.Text} installed successfully."),
                 AddonAction.SwitchToStable => (
                     "Channel change complete",
-                    "RetreatUI was switched to the Stable channel successfully.",
-                    $"Stable RetreatUI {InstalledVersionText.Text} installed successfully."),
+                    $"RetreatUI {ProductShortName} was switched to Stable successfully.",
+                    $"Stable {ProductShortName} {InstalledVersionText.Text} installed successfully."),
                 AddonAction.SwitchToBeta => (
                     "Channel change complete",
-                    "RetreatUI was switched to the Beta channel successfully.",
-                    $"Beta RetreatUI {InstalledVersionText.Text} installed successfully."),
+                    $"RetreatUI {ProductShortName} was switched to Beta successfully.",
+                    $"Beta {ProductShortName} {InstalledVersionText.Text} installed successfully."),
                 _ => (
                     "Update complete",
-                    "RetreatUI was updated successfully.",
-                    $"RetreatUI {InstalledVersionText.Text} updated successfully.")
+                    $"RetreatUI {ProductShortName} was updated successfully.",
+                    $"RetreatUI {ProductShortName} {InstalledVersionText.Text} updated successfully.")
             };
 
             SetStatus(status, StatusKind.Success);
@@ -361,7 +485,7 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 this,
                 ex.Message,
-                "RetreatUI installation failed",
+                $"RetreatUI {ProductShortName} installation failed",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
@@ -395,16 +519,16 @@ public partial class MainWindow : Window
         if (_currentAddonAction != AddonAction.Update
             || _latestRelease is null
             || _isBusy
-            || !_gamePathService.HasValidAddOnsPath(_settings.AddOnsPath))
+            || !_gamePathService.HasValidAddOnsPath(CurrentAddOnsPath))
         {
             return;
         }
 
-        string latestVersion = NormalizeVersion(_latestRelease.TagName);
-        if (_installerService.IsGameRunning())
+        string latestVersion = GitHubReleaseService.GetAssetVersion(_latestRelease, _selectedEdition);
+        if (_gameProcessService.IsGameRunning(_selectedEdition))
         {
             SetStatus(
-                $"RetreatUI {latestVersion} is ready. Close Project Ascension and press Refresh to install it automatically.",
+                $"RetreatUI {ProductShortName} {latestVersion} is ready. Close {ProductName} and press Refresh to install it automatically.",
                 StatusKind.Neutral);
             return;
         }
@@ -497,13 +621,13 @@ public partial class MainWindow : Window
     {
         OpenFolderDialog dialog = new()
         {
-            Title = "Select the Project Ascension AddOns folder",
+            Title = $"Select the {ProductName} AddOns folder",
             Multiselect = false
         };
 
-        if (!string.IsNullOrWhiteSpace(_settings.AddOnsPath) && Directory.Exists(_settings.AddOnsPath))
+        if (!string.IsNullOrWhiteSpace(CurrentAddOnsPath) && Directory.Exists(CurrentAddOnsPath))
         {
-            dialog.InitialDirectory = _settings.AddOnsPath;
+            dialog.InitialDirectory = CurrentAddOnsPath;
         }
 
         if (dialog.ShowDialog(this) != true)
@@ -523,12 +647,38 @@ public partial class MainWindow : Window
             return;
         }
 
-        _settings.AddOnsPath = normalized;
-        _settings.GameExecutablePath = _gamePathService.FindGameExecutable(normalized) ?? string.Empty;
+        CurrentAddOnsPath = normalized;
+        CurrentGameExecutablePath = _gamePathService.FindGameExecutable(normalized, _selectedEdition) ?? string.Empty;
         await _settingsService.SaveAsync(_settings);
 
         UpdatePathDisplay();
         await RefreshAsync();
+    }
+
+    private async void EditionRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        GameEdition nextEdition = TbcRadio.IsChecked == true ? GameEdition.Tbc : GameEdition.CoA;
+        if (_selectedEdition == nextEdition)
+        {
+            return;
+        }
+
+        _selectedEdition = nextEdition;
+        _settings.SelectedEdition = _selectedEdition.ToString();
+        EnsureDetectedPaths(_selectedEdition);
+        await _settingsService.SaveAsync(_settings);
+
+        _latestRelease = null;
+        _currentAddonAction = AddonAction.None;
+        ApplyEditionVisuals();
+        UpdatePathDisplay();
+        await RefreshAsync();
+        TryInstallAddonUpdateAutomatically();
     }
 
     private async void ChannelRadio_Checked(object sender, RoutedEventArgs e)
@@ -545,6 +695,10 @@ public partial class MainWindow : Window
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
+        EnsureDetectedPaths(_selectedEdition);
+        await _settingsService.SaveAsync(_settings);
+        UpdatePathDisplay();
+
         await CheckLauncherUpdateAsync();
         if (TryInstallLauncherUpdateAutomatically())
         {
@@ -578,47 +732,79 @@ public partial class MainWindow : Window
 
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!_gamePathService.HasValidAddOnsPath(_settings.AddOnsPath))
+        if (!_gamePathService.HasValidAddOnsPath(CurrentAddOnsPath))
         {
             return;
         }
 
         Process.Start(new ProcessStartInfo
         {
-            FileName = _settings.AddOnsPath,
+            FileName = CurrentAddOnsPath,
             UseShellExecute = true
         });
     }
 
     private void LaunchButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(_settings.GameExecutablePath))
+        if (!File.Exists(CurrentGameExecutablePath))
         {
-            MessageBox.Show(this, "The Ascension launcher executable could not be found.", "RetreatUI Launcher");
+            MessageBox.Show(
+                this,
+                $"The {ProductName} executable could not be found. Choose the AddOns folder again to refresh detection.",
+                "RetreatUI Launcher");
             return;
         }
 
         Process.Start(new ProcessStartInfo
         {
-            FileName = _settings.GameExecutablePath,
-            WorkingDirectory = Path.GetDirectoryName(_settings.GameExecutablePath)!,
+            FileName = CurrentGameExecutablePath,
+            WorkingDirectory = Path.GetDirectoryName(CurrentGameExecutablePath)!,
             UseShellExecute = true
         });
     }
 
+    private void ApplyEditionVisuals()
+    {
+        if (_selectedEdition == GameEdition.CoA)
+        {
+            EditionTitleText.Text = "Conquest of Azeroth";
+            EditionSubtitleText.Text = "Project Ascension installation";
+            PathLabelText.Text = "PROJECT ASCENSION ADDONS FOLDER";
+            ReleaseHeadingText.Text = "LATEST COA CHANGES";
+            LaunchButton.Content = "Launch CoA";
+        }
+        else
+        {
+            EditionTitleText.Text = "The Burning Crusade";
+            EditionSubtitleText.Text = "Classic / Anniversary installation";
+            PathLabelText.Text = "WOW CLASSIC / TBC ADDONS FOLDER";
+            ReleaseHeadingText.Text = "LATEST TBC CHANGES";
+            LaunchButton.Content = "Launch TBC";
+        }
+
+        LatestVersionText.Text = "Checking...";
+        ReleaseNotesText.Text = $"Checking {ProductShortName} releases...";
+    }
+
     private void UpdatePathDisplay()
     {
-        bool valid = _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
-        PathText.Text = valid ? _settings.AddOnsPath : "Not selected";
-        OpenFolderButton.IsEnabled = valid;
-        LaunchButton.IsEnabled = File.Exists(_settings.GameExecutablePath);
+        bool valid = _gamePathService.HasValidAddOnsPath(CurrentAddOnsPath);
+        PathText.Text = valid ? CurrentAddOnsPath : "Not selected";
+        UpdateProductControls();
         UpdateInstalledVersion();
+    }
+
+    private void UpdateProductControls()
+    {
+        bool valid = _gamePathService.HasValidAddOnsPath(CurrentAddOnsPath);
+        OpenFolderButton.IsEnabled = !_isBusy && valid;
+        LaunchButton.IsEnabled = !_isBusy && File.Exists(CurrentGameExecutablePath);
     }
 
     private void UpdateInstalledVersion()
     {
-        InstalledVersionText.Text = _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath)
-            ? _gamePathService.ReadInstalledVersion(_settings.AddOnsPath)
+        InstalledVersionText.Text = _gamePathService.HasValidAddOnsPath(CurrentAddOnsPath)
+            ? _gamePathService.ReadInstalledVersion(CurrentAddOnsPath)
             : "Unknown";
     }
 
@@ -628,8 +814,11 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = !busy;
         StableRadio.IsEnabled = !busy;
         BetaRadio.IsEnabled = !busy;
-        OpenFolderButton.IsEnabled = !busy && _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
-        LaunchButton.IsEnabled = !busy && File.Exists(_settings.GameExecutablePath);
+        CoARadio.IsEnabled = !busy;
+        TbcRadio.IsEnabled = !busy;
+        SupportButton.IsEnabled = !busy;
+        OpenFolderButton.IsEnabled = !busy && _gamePathService.HasValidAddOnsPath(CurrentAddOnsPath);
+        LaunchButton.IsEnabled = !busy && File.Exists(CurrentGameExecutablePath);
         LauncherUpdateButton.IsEnabled = !busy && _launcherUpdate is not null;
 
         if (busy)
@@ -638,7 +827,7 @@ public partial class MainWindow : Window
         }
         else if (_currentAddonAction != AddonAction.None)
         {
-            UpdateButton.IsEnabled = _gamePathService.HasValidAddOnsPath(_settings.AddOnsPath);
+            UpdateButton.IsEnabled = _gamePathService.HasValidAddOnsPath(CurrentAddOnsPath);
         }
     }
 
@@ -716,5 +905,3 @@ public partial class MainWindow : Window
         Error
     }
 }
-
-
