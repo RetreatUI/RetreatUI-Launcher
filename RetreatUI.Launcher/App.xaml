@@ -3,71 +3,96 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
-        <SolidColorBrush x:Key="BackgroundBrush" Color="#071018"/>
-        <SolidColorBrush x:Key="PanelBrush" Color="#E80B141D"/>
-        <SolidColorBrush x:Key="PanelAltBrush" Color="#E80E1822"/>
-        <SolidColorBrush x:Key="PanelDeepBrush" Color="#F3070E15"/>
-        <SolidColorBrush x:Key="AccentBrush" Color="#C98628"/>
-        <SolidColorBrush x:Key="AccentHoverBrush" Color="#E9A544"/>
-        <SolidColorBrush x:Key="AccentSoftBrush" Color="#6A3D220F"/>
-        <SolidColorBrush x:Key="TitleBrush" Color="#D6A45F"/>
-        <SolidColorBrush x:Key="TextBrush" Color="#F1EEE8"/>
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#A0A9B5"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="#061018"/>
+        <SolidColorBrush x:Key="PanelBrush" Color="#F20A131B"/>
+        <SolidColorBrush x:Key="PanelAltBrush" Color="#E90D1720"/>
+        <SolidColorBrush x:Key="PanelDeepBrush" Color="#F5060D13"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#C9821E"/>
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="#E9A33B"/>
+        <SolidColorBrush x:Key="AccentMutedBrush" Color="#865116"/>
+        <SolidColorBrush x:Key="TitleBrush" Color="#D9A25B"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#ECE7DE"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#9EA6B0"/>
+        <SolidColorBrush x:Key="DimTextBrush" Color="#78838F"/>
         <SolidColorBrush x:Key="SuccessBrush" Color="#72C95B"/>
         <SolidColorBrush x:Key="DangerBrush" Color="#E47770"/>
-        <SolidColorBrush x:Key="BorderBrush" Color="#33404E"/>
-        <SolidColorBrush x:Key="SoftBorderBrush" Color="#27323D"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="#39434D"/>
+        <SolidColorBrush x:Key="SoftBorderBrush" Color="#2B343E"/>
 
         <LinearGradientBrush x:Key="LauncherBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#08131D" Offset="0"/>
-            <GradientStop Color="#071019" Offset="0.48"/>
-            <GradientStop Color="#090D12" Offset="1"/>
+            <GradientStop Color="#08141E" Offset="0"/>
+            <GradientStop Color="#061018" Offset="0.48"/>
+            <GradientStop Color="#070C12" Offset="1"/>
         </LinearGradientBrush>
 
         <RadialGradientBrush x:Key="HeaderGlowBrush"
-                             Center="0.18,0.06"
-                             GradientOrigin="0.18,0.06"
+                             Center="0.20,0.06"
+                             GradientOrigin="0.20,0.06"
                              RadiusX="0.72"
-                             RadiusY="0.52">
-            <GradientStop Color="#1C294052" Offset="0"/>
+                             RadiusY="0.54">
+            <GradientStop Color="#18243A4B" Offset="0"/>
             <GradientStop Color="#00131D29" Offset="1"/>
         </RadialGradientBrush>
 
-        <LinearGradientBrush x:Key="CardLeftFadeBrush" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#FB0B151F" Offset="0"/>
-            <GradientStop Color="#F20B151F" Offset="0.47"/>
-            <GradientStop Color="#A30B151F" Offset="0.72"/>
-            <GradientStop Color="#210B151F" Offset="1"/>
+        <LinearGradientBrush x:Key="CoACardBackgroundBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#FA0B151E" Offset="0"/>
+            <GradientStop Color="#F10B151E" Offset="0.48"/>
+            <GradientStop Color="#D80E1821" Offset="0.68"/>
+            <GradientStop Color="#E310171D" Offset="1"/>
         </LinearGradientBrush>
 
-        <LinearGradientBrush x:Key="DetailLeftFadeBrush" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#FC0A141D" Offset="0"/>
-            <GradientStop Color="#F50A141D" Offset="0.58"/>
-            <GradientStop Color="#C80A141D" Offset="0.78"/>
-            <GradientStop Color="#7A0A141D" Offset="1"/>
+        <LinearGradientBrush x:Key="TbcCardBackgroundBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#FA0B151E" Offset="0"/>
+            <GradientStop Color="#F10B151E" Offset="0.47"/>
+            <GradientStop Color="#D817160F" Offset="0.69"/>
+            <GradientStop Color="#E318140C" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="CardTextProtectionBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#FF0A141D" Offset="0"/>
+            <GradientStop Color="#F80A141D" Offset="0.44"/>
+            <GradientStop Color="#BE0A141D" Offset="0.63"/>
+            <GradientStop Color="#410A141D" Offset="0.82"/>
+            <GradientStop Color="#000A141D" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="DetailTextProtectionBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#FF09131B" Offset="0"/>
+            <GradientStop Color="#FB09131B" Offset="0.57"/>
+            <GradientStop Color="#DB09131B" Offset="0.76"/>
+            <GradientStop Color="#6509131B" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="WarmDisabledActionBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#7C4A2511" Offset="0"/>
+            <GradientStop Color="#9A5D2A13" Offset="0.50"/>
+            <GradientStop Color="#72401E0E" Offset="1"/>
         </LinearGradientBrush>
 
         <DrawingBrush x:Key="SubtleTextureBrush"
                       TileMode="Tile"
-                      Viewport="0,0,28,28"
+                      Viewport="0,0,36,36"
                       ViewportUnits="Absolute"
-                      Viewbox="0,0,28,28"
+                      Viewbox="0,0,36,36"
                       ViewboxUnits="Absolute">
             <DrawingBrush.Drawing>
-                <DrawingGroup Opacity="0.18">
+                <DrawingGroup Opacity="0.22">
                     <GeometryDrawing Brush="Transparent">
                         <GeometryDrawing.Pen>
-                            <Pen Brush="#17344A5B" Thickness="0.45"/>
+                            <Pen Brush="#17384A56" Thickness="0.34"/>
                         </GeometryDrawing.Pen>
                         <GeometryDrawing.Geometry>
                             <GeometryGroup>
-                                <LineGeometry StartPoint="0,27.5" EndPoint="28,27.5"/>
-                                <LineGeometry StartPoint="27.5,0" EndPoint="27.5,28"/>
+                                <LineGeometry StartPoint="0,35.5" EndPoint="36,35.5"/>
+                                <LineGeometry StartPoint="35.5,0" EndPoint="35.5,36"/>
+                                <LineGeometry StartPoint="2,11" EndPoint="17,3"/>
+                                <LineGeometry StartPoint="22,35" EndPoint="35,28"/>
                             </GeometryGroup>
                         </GeometryDrawing.Geometry>
                     </GeometryDrawing>
-                    <GeometryDrawing Brush="#152C3C49" Geometry="M 5,5 L 6,5 6,6 5,6 Z"/>
-                    <GeometryDrawing Brush="#122D3944" Geometry="M 19,12 L 20,12 20,13 19,13 Z"/>
+                    <GeometryDrawing Brush="#122D3B45" Geometry="M 5,5 L 6,5 6,6 5,6 Z"/>
+                    <GeometryDrawing Brush="#1126323D" Geometry="M 18,14 L 19,14 19,15 18,15 Z"/>
+                    <GeometryDrawing Brush="#0F3C4850" Geometry="M 29,24 L 30,24 30,25 29,25 Z"/>
                 </DrawingGroup>
             </DrawingBrush.Drawing>
         </DrawingBrush>
@@ -85,14 +110,15 @@
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#F8F0E2"/>
-            <Setter Property="Background" Value="#8F5A2B12"/>
-            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="#C7CBD0"/>
+            <Setter Property="Background" Value="{StaticResource WarmDisabledActionBrush}"/>
+            <Setter Property="BorderBrush" Value="#9A641D"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="Palatino Linotype"/>
+            <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="20,11"/>
-            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="MinHeight" Value="45"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -108,14 +134,16 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#B2703619"/>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#A56A3015"/>
                                 <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource AccentHoverBrush}"/>
+                                <Setter Property="Foreground" Value="#F1E3CE"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.82"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.46"/>
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.74"/>
+                                <Setter Property="Foreground" Value="#89919A"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -125,11 +153,11 @@
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-            <Setter Property="Background" Value="#C60C151E"/>
+            <Setter Property="Background" Value="#E009121A"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,9"/>
-            <Setter Property="MinHeight" Value="39"/>
+            <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="MinHeight" Value="40"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -146,14 +174,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#DD14212D"/>
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#F0121C26"/>
                                 <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource AccentHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.82"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.4"/>
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.42"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -163,10 +191,11 @@
 
         <Style x:Key="ChannelRadioStyle" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
-            <Setter Property="Background" Value="#9A0B141C"/>
-            <Setter Property="Padding" Value="18,9"/>
-            <Setter Property="MinWidth" Value="74"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Background" Value="#D009121A"/>
+            <Setter Property="Padding" Value="19,10"/>
+            <Setter Property="MinWidth" Value="78"/>
+            <Setter Property="FontFamily" Value="Palatino Linotype"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -182,9 +211,9 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="RadioBorder" Property="Background" Value="#A634210F"/>
+                                <Setter TargetName="RadioBorder" Property="Background" Value="#9C3B210E"/>
                                 <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="#F8E4C5"/>
+                                <Setter Property="Foreground" Value="#F4E4CC"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{StaticResource AccentHoverBrush}"/>
