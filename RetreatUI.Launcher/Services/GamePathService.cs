@@ -1,28 +1,29 @@
 using Microsoft.Win32;
+using RetreatUI.Launcher.Models;
 
 namespace RetreatUI.Launcher.Services;
 
 public sealed class GamePathService
 {
-    private static readonly string[] AddonFolderNames = { "RetreatUI", "RetreatUI_Classes" };
+    private static readonly string[] ManagedAddonFolders = { "RetreatUI", "RetreatUI_Classes" };
 
-    public string? AutoDetectAddOnsPath()
+    public string? AutoDetectAddOnsPath(GameEdition edition)
     {
-        foreach (string candidate in GetCandidates())
+        foreach (string candidate in GetKnownCandidates(edition))
         {
-            string? found = NormalizeToAddOnsPath(candidate);
-            if (found is not null)
+            string? normalized = NormalizeToAddOnsPath(candidate);
+            if (normalized is not null)
             {
-                return found;
+                return normalized;
             }
         }
 
         return null;
     }
 
-    public string? NormalizeToAddOnsPath(string path)
+    public string? NormalizeToAddOnsPath(string selectedPath)
     {
-        if (string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(selectedPath))
         {
             return null;
         }
@@ -30,16 +31,21 @@ public sealed class GamePathService
         string fullPath;
         try
         {
-            fullPath = Path.GetFullPath(path.Trim().Trim('"'));
+            fullPath = Path.GetFullPath(selectedPath.Trim());
         }
         catch
         {
             return null;
         }
 
-        if (Directory.Exists(fullPath)
-            && string.Equals(Path.GetFileName(fullPath), "AddOns", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(Path.GetFileName(Directory.GetParent(fullPath)?.FullName), "Interface", StringComparison.OrdinalIgnoreCase))
+        if (!Directory.Exists(fullPath))
+        {
+            return null;
+        }
+
+        if (Path.GetFileName(fullPath).Equals("AddOns", StringComparison.OrdinalIgnoreCase)
+            && Path.GetFileName(Path.GetDirectoryName(fullPath) ?? string.Empty)
+                .Equals("Interface", StringComparison.OrdinalIgnoreCase))
         {
             return fullPath;
         }
@@ -50,182 +56,217 @@ public sealed class GamePathService
             return direct;
         }
 
-        try
+        string? interfaceFolder = Directory.EnumerateDirectories(fullPath, "Interface", SearchOption.TopDirectoryOnly)
+            .FirstOrDefault();
+        if (interfaceFolder is not null)
         {
-            foreach (string interfaceDirectory in Directory.EnumerateDirectories(fullPath, "Interface", SearchOption.AllDirectories).Take(20))
+            string addOns = Path.Combine(interfaceFolder, "AddOns");
+            if (Directory.Exists(addOns))
             {
-                string addons = Path.Combine(interfaceDirectory, "AddOns");
-                if (Directory.Exists(addons))
-                {
-                    return addons;
-                }
+                return addOns;
             }
-        }
-        catch
-        {
-            // Ignore inaccessible folders.
         }
 
         return null;
     }
 
-    public string? FindGameExecutable(string addOnsPath)
+    public bool HasValidAddOnsPath(string path)
     {
-        DirectoryInfo? current = new DirectoryInfo(addOnsPath);
-        for (int level = 0; level < 6 && current is not null; level++, current = current.Parent)
-        {
-            try
-            {
-                string[] preferredNames =
-                {
-                    "Ascension Launcher.exe",
-                    "Project Ascension.exe",
-                    "Ascension.exe",
-                    "Launcher.exe"
-                };
-
-                foreach (string fileName in preferredNames)
-                {
-                    string candidate = Path.Combine(current.FullName, fileName);
-                    if (File.Exists(candidate))
-                    {
-                        return candidate;
-                    }
-                }
-
-                string? ascensionExe = Directory.EnumerateFiles(current.FullName, "*.exe", SearchOption.TopDirectoryOnly)
-                    .FirstOrDefault(path => Path.GetFileName(path).Contains("Ascension", StringComparison.OrdinalIgnoreCase));
-                if (ascensionExe is not null)
-                {
-                    return ascensionExe;
-                }
-            }
-            catch
-            {
-                // Ignore inaccessible folders.
-            }
-        }
-
-        return null;
+        return NormalizeToAddOnsPath(path) is not null;
     }
 
     public string ReadInstalledVersion(string addOnsPath)
     {
-        string? version = ReadTocVersion(Path.Combine(addOnsPath, "RetreatUI", "RetreatUI.toc"));
-        version ??= ReadTocVersion(Path.Combine(addOnsPath, "RetreatUI_Classes", "RetreatUI_Classes.toc"));
-        return string.IsNullOrWhiteSpace(version) ? "Not installed" : version;
+        if (!HasValidAddOnsPath(addOnsPath))
+        {
+            return "Unknown";
+        }
+
+        string[] tocPaths =
+        {
+            Path.Combine(addOnsPath, "RetreatUI", "RetreatUI.toc"),
+            Path.Combine(addOnsPath, "RetreatUI_Classes", "RetreatUI_Classes.toc")
+        };
+
+        foreach (string tocPath in tocPaths)
+        {
+            if (!File.Exists(tocPath))
+            {
+                continue;
+            }
+
+            foreach (string line in File.ReadLines(tocPath))
+            {
+                if (line.StartsWith("## Version:", StringComparison.OrdinalIgnoreCase))
+                {
+                    return line[(line.IndexOf(':') + 1)..].Trim().TrimStart('v', 'V');
+                }
+            }
+        }
+
+        return ManagedAddonFolders.Any(folder => Directory.Exists(Path.Combine(addOnsPath, folder)))
+            ? "Unknown"
+            : "Not installed";
     }
 
-    public bool HasValidAddOnsPath(string addOnsPath)
+    public string? FindGameExecutable(string addOnsPath, GameEdition edition)
     {
-        return Directory.Exists(addOnsPath)
-               && string.Equals(Path.GetFileName(addOnsPath), "AddOns", StringComparison.OrdinalIgnoreCase);
-    }
-
-    public IEnumerable<string> GetInstalledAddonFolders(string addOnsPath)
-    {
-        return AddonFolderNames
-            .Select(name => Path.Combine(addOnsPath, name))
-            .Where(Directory.Exists);
-    }
-
-    private static string? ReadTocVersion(string tocPath)
-    {
-        if (!File.Exists(tocPath))
+        if (string.IsNullOrWhiteSpace(addOnsPath))
         {
             return null;
         }
 
-        try
+        DirectoryInfo? current = Directory.GetParent(addOnsPath);
+        for (int level = 0; current is not null && level < 8; level++, current = current.Parent)
         {
-            foreach (string line in File.ReadLines(tocPath))
+            foreach (string executableName in GetExecutableNames(edition))
             {
-                const string prefix = "## Version:";
-                if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                string candidate = Path.Combine(current.FullName, executableName);
+                if (File.Exists(candidate))
                 {
-                    return line[prefix.Length..].Trim();
+                    return candidate;
                 }
             }
-        }
-        catch
-        {
-            // Return null when the file cannot be read.
         }
 
         return null;
     }
 
-    private static IEnumerable<string> GetCandidates()
+    private static IEnumerable<string> GetKnownCandidates(GameEdition edition)
     {
         string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
-        string[] basePaths =
+        if (edition == GameEdition.CoA)
         {
-            Path.Combine(programFiles, "Project Ascension"),
-            Path.Combine(programFiles, "Ascension Launcher"),
-            Path.Combine(programFilesX86, "Project Ascension"),
-            Path.Combine(programFilesX86, "Ascension Launcher"),
-            Path.Combine(localAppData, "Project Ascension"),
-            Path.Combine(localAppData, "Ascension Launcher"),
-            Path.Combine(localAppData, "Programs", "Project Ascension"),
-            Path.Combine(localAppData, "Programs", "Ascension Launcher"),
-            Path.Combine(appData, "Project Ascension"),
-            Path.Combine(appData, "Ascension Launcher"),
-            Path.Combine(desktop, "Project Ascension"),
-            Path.Combine(desktop, "Ascension Launcher")
+            string[] roots =
+            {
+                Path.Combine(programFiles, "Project Ascension"),
+                Path.Combine(programFilesX86, "Project Ascension"),
+                Path.Combine(programFiles, "Ascension Launcher", "resources", "client"),
+                Path.Combine(programFilesX86, "Ascension Launcher", "resources", "client"),
+                Path.Combine(localAppData, "Programs", "Ascension Launcher", "resources", "client"),
+                Path.Combine(desktop, "Project Ascension"),
+                Path.Combine(desktop, "Ascension")
+            };
+
+            return roots.Concat(GetAscensionRegistryLocations());
+        }
+
+        string[] wowRoots =
+        {
+            Path.Combine(programFiles, "World of Warcraft"),
+            Path.Combine(programFilesX86, "World of Warcraft"),
+            Path.Combine(desktop, "World of Warcraft")
         };
 
-        foreach (string path in basePaths.Where(Directory.Exists))
+        string[] clientFolders =
         {
-            yield return path;
+            "_anniversary_",
+            "_classic_anniversary_",
+            "_classic_",
+            "_classic_era_",
+            "_classic_ptr_"
+        };
+
+        List<string> candidates = new();
+        foreach (string root in wowRoots.Concat(GetBlizzardRegistryLocations()))
+        {
+            candidates.Add(root);
+            candidates.AddRange(clientFolders.Select(folder => Path.Combine(root, folder)));
         }
 
-        foreach (string registryPath in GetRegistryInstallLocations())
-        {
-            yield return registryPath;
-        }
+        return candidates;
     }
 
-    private static IEnumerable<string> GetRegistryInstallLocations()
+    private static IEnumerable<string> GetAscensionRegistryLocations()
     {
-        string[] roots =
+        string[] uninstallRoots =
         {
             @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
             @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
         };
 
-        foreach (RegistryHive hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
+        foreach (RegistryKey root in new[] { Registry.CurrentUser, Registry.LocalMachine })
         {
-            foreach (string root in roots)
+            foreach (string uninstallRoot in uninstallRoots)
             {
-                RegistryView[] views = { RegistryView.Registry64, RegistryView.Registry32 };
-                foreach (RegistryView view in views)
+                using RegistryKey? key = root.OpenSubKey(uninstallRoot);
+                if (key is null)
                 {
-                    using RegistryKey baseKey = RegistryKey.OpenBaseKey(hive, view);
-                    using RegistryKey? uninstall = baseKey.OpenSubKey(root);
-                    if (uninstall is null) continue;
+                    continue;
+                }
 
-                    foreach (string subKeyName in uninstall.GetSubKeyNames())
+                foreach (string subKeyName in key.GetSubKeyNames())
+                {
+                    using RegistryKey? subKey = key.OpenSubKey(subKeyName);
+                    string displayName = subKey?.GetValue("DisplayName") as string ?? string.Empty;
+                    if (!displayName.Contains("Ascension", StringComparison.OrdinalIgnoreCase))
                     {
-                        using RegistryKey? app = uninstall.OpenSubKey(subKeyName);
-                        string? displayName = app?.GetValue("DisplayName") as string;
-                        if (displayName?.Contains("Ascension", StringComparison.OrdinalIgnoreCase) != true)
-                        {
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        string? installLocation = app?.GetValue("InstallLocation") as string;
-                        if (!string.IsNullOrWhiteSpace(installLocation) && Directory.Exists(installLocation))
-                        {
-                            yield return installLocation;
-                        }
+                    string? installLocation = subKey?.GetValue("InstallLocation") as string;
+                    if (!string.IsNullOrWhiteSpace(installLocation))
+                    {
+                        yield return installLocation;
                     }
                 }
             }
         }
+    }
+
+    private static IEnumerable<string> GetBlizzardRegistryLocations()
+    {
+        string[] keys =
+        {
+            @"SOFTWARE\Blizzard Entertainment\World of Warcraft",
+            @"SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft"
+        };
+
+        foreach (RegistryKey root in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        {
+            foreach (string keyPath in keys)
+            {
+                using RegistryKey? key = root.OpenSubKey(keyPath);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (string valueName in new[] { "InstallPath", "Path" })
+                {
+                    string? path = key.GetValue(valueName) as string;
+                    if (!string.IsNullOrWhiteSpace(path))
+                    {
+                        yield return path;
+                    }
+                }
+            }
+        }
+    }
+
+    private static string[] GetExecutableNames(GameEdition edition)
+    {
+        return edition == GameEdition.CoA
+            ? new[]
+            {
+                "Ascension Launcher.exe",
+                "Project Ascension Launcher.exe",
+                "Ascension.exe",
+                "Project Ascension.exe",
+                "Wow.exe",
+                "Wow-64.exe"
+            }
+            : new[]
+            {
+                "WowClassic.exe",
+                "WowClassicT.exe",
+                "Wow.exe",
+                "World of Warcraft Launcher.exe",
+                "Battle.net Launcher.exe"
+            };
     }
 }
