@@ -2,6 +2,8 @@ name: Build RetreatUI Launcher
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
   pull_request:
     paths:
       - "RetreatUI.Launcher/**"
@@ -93,6 +95,7 @@ jobs:
             publish/RetreatUI_Launcher.exe
             publish/RetreatUI_Launcher.exe.sha256
             RetreatUI_Launcher_win-x64.zip
+          if-no-files-found: error
 
       - name: Check release state
         id: release
