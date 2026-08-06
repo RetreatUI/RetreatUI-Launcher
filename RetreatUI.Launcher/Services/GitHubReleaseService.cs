@@ -32,7 +32,7 @@ public sealed class GitHubReleaseService
             Timeout = TimeSpan.FromSeconds(30)
         };
         _httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.3.5"));
+            new ProductInfoHeaderValue("RetreatUI-Launcher", "0.3.7"));
     }
 
     public async Task<GitHubRelease?> GetLatestReleaseAsync(
@@ -116,36 +116,94 @@ public sealed class GitHubReleaseService
 
     private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
     {
+        List<GitHubRelease>? feedReleases = null;
+        List<GitHubRelease>? apiReleases = null;
+        Exception? feedError = null;
+        Exception? apiError = null;
+
         try
         {
-            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-            using HttpResponseMessage feedResponse = await _httpClient.GetAsync(
-                feedUrl,
+            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            using HttpRequestMessage feedRequest = new(HttpMethod.Get, feedUrl);
+            feedRequest.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage feedResponse = await _httpClient.SendAsync(
+                feedRequest,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
+            feedResponse.EnsureSuccessStatusCode();
+            feedReleases = await DeserializeReleasesAsync(feedResponse, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            feedError = ex;
+        }
+        catch (JsonException ex)
+        {
+            feedError = ex;
+        }
 
-            if (feedResponse.IsSuccessStatusCode)
+        try
+        {
+            using HttpRequestMessage apiRequest = new(HttpMethod.Get, ApiReleasesUrl);
+            apiRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            apiRequest.Headers.CacheControl = new CacheControlHeaderValue
             {
-                return await DeserializeReleasesAsync(feedResponse, cancellationToken);
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage apiResponse = await _httpClient.SendAsync(
+                apiRequest,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            apiResponse.EnsureSuccessStatusCode();
+            apiReleases = await DeserializeReleasesAsync(apiResponse, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            apiError = ex;
+        }
+        catch (JsonException ex)
+        {
+            apiError = ex;
+        }
+
+        if (feedReleases is null && apiReleases is null)
+        {
+            throw new HttpRequestException(
+                "Neither the RetreatUI release feed nor the GitHub Releases API could be loaded.",
+                apiError ?? feedError);
+        }
+
+        Dictionary<string, GitHubRelease> merged = new(StringComparer.OrdinalIgnoreCase);
+        AddReleases(merged, feedReleases);
+
+        // GitHub is authoritative when both sources contain the same tag. This also
+        // means a valid but stale CDN feed can never hide a newly published release.
+        AddReleases(merged, apiReleases);
+
+        return merged.Values.ToList();
+    }
+
+    private static void AddReleases(
+        IDictionary<string, GitHubRelease> target,
+        IEnumerable<GitHubRelease>? releases)
+    {
+        if (releases is null)
+        {
+            return;
+        }
+
+        foreach (GitHubRelease release in releases)
+        {
+            if (!string.IsNullOrWhiteSpace(release.TagName))
+            {
+                target[release.TagName] = release;
             }
         }
-        catch (HttpRequestException)
-        {
-            // Fall back to the GitHub API only when the CDN feed is unavailable.
-        }
-        catch (JsonException)
-        {
-            // Fall back to the GitHub API if the feed is temporarily malformed.
-        }
-
-        using HttpRequestMessage apiRequest = new(HttpMethod.Get, ApiReleasesUrl);
-        apiRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using HttpResponseMessage apiResponse = await _httpClient.SendAsync(
-            apiRequest,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        apiResponse.EnsureSuccessStatusCode();
-        return await DeserializeReleasesAsync(apiResponse, cancellationToken);
     }
 
     private static async Task<List<GitHubRelease>> DeserializeReleasesAsync(
