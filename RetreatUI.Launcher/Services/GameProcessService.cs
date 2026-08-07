@@ -7,36 +7,51 @@ public sealed class GameProcessService
 {
     public bool IsGameRunning(GameEdition edition)
     {
-        string[] exactNames = edition == GameEdition.CoA
+        // Do not use a broad "contains Wow" scan here. Battle.net helper/background
+        // processes can contain WoW-related text even when the actual game client is
+        // closed, which previously caused false positives for TBC updates.
+        string[] executableNames = edition == GameEdition.CoA
             ? new[] { "Wow", "Wow-64", "Ascension", "Project Ascension" }
-            : new[] { "Wow", "WowClassic", "WowClassicT" };
+            : new[] { "WowClassic", "WowClassicT", "WowClassicT.exe", "WowClassic.exe" };
 
-        foreach (string processName in exactNames)
+        foreach (string executableName in executableNames)
         {
-            if (Process.GetProcessesByName(processName).Length > 0)
+            string processName = Path.GetFileNameWithoutExtension(executableName);
+            if (string.IsNullOrWhiteSpace(processName))
             {
-                return true;
+                continue;
             }
-        }
 
-        return Process.GetProcesses().Any(process =>
-        {
             try
             {
-                string processName = process.ProcessName;
-                if (processName.Contains("Launcher", StringComparison.OrdinalIgnoreCase))
+                if (Process.GetProcessesByName(processName).Any(process => IsLiveProcess(process)))
                 {
-                    return false;
+                    return true;
                 }
-
-                return edition == GameEdition.CoA
-                    ? processName.Contains("Ascension", StringComparison.OrdinalIgnoreCase)
-                    : processName.Contains("Wow", StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
-                return false;
+                // Process enumeration can race with processes exiting. A failed probe
+                // must never block an addon update as though the game were running.
             }
-        });
+        }
+
+        return false;
+    }
+
+    private static bool IsLiveProcess(Process process)
+    {
+        try
+        {
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            process.Dispose();
+        }
     }
 }
