@@ -1,0 +1,125 @@
+name: Recover public launcher 0.3.8 release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-recovery-0.3.8.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download exact private 0.3.8 release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          gh release download launcher-v0.3.8 `
+            --repo RetreatUI/RetreatUI-Launcher `
+            --dir dist `
+            --pattern "RetreatUI_Launcher.exe" `
+            --pattern "RetreatUI_Launcher.exe.sha256" `
+            --pattern "RetreatUI_Launcher_win-x64.zip"
+
+          $exe = "dist/RetreatUI_Launcher.exe"
+          $checksum = "dist/RetreatUI_Launcher.exe.sha256"
+          $zip = "dist/RetreatUI_Launcher_win-x64.zip"
+          foreach ($path in @($exe, $checksum, $zip)) {
+            if (!(Test-Path -LiteralPath $path)) { throw "Missing asset: $path" }
+          }
+
+          $exeHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($exeHash -ne "5aaf2a44a57c51fcdaef1cb7bd568a46fa9b481f3a4c833a998477ec6a0a904d") {
+            throw "Private 0.3.8 EXE hash mismatch: $exeHash"
+          }
+          if ($zipHash -ne "3be17c87589d56ad1844529114f9247cc7c92c917bafbf537644b952652014b0") {
+            throw "Private 0.3.8 ZIP hash mismatch: $zipHash"
+          }
+          $expected = (Get-Content -LiteralPath $checksum -Raw).Trim().Split()[0].ToLowerInvariant()
+          if ($expected -ne $exeHash) { throw "Checksum file does not match EXE." }
+          if ((Get-Item -LiteralPath $exe).Length -ne 72064586) { throw "Unexpected EXE size." }
+          if ((Get-Item -LiteralPath $zip).Length -ne 66592334) { throw "Unexpected ZIP size." }
+
+      - name: Verify runner user can publish to public release repo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+          Remove-Item Env:GITHUB_TOKEN -ErrorAction SilentlyContinue
+          gh auth status
+          gh repo view RetreatUI/RetreatUI-Launcher-Releases --json nameWithOwner,viewerPermission
+          $permission = (gh repo view RetreatUI/RetreatUI-Launcher-Releases --json viewerPermission --jq .viewerPermission).Trim()
+          if ($permission -notin @("ADMIN", "MAINTAIN", "WRITE")) {
+            throw "Runner gh login does not have write access to the public release repository."
+          }
+
+      - name: Publish exact 0.3.8 assets publicly
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+          Remove-Item Env:GITHUB_TOKEN -ErrorAction SilentlyContinue
+          $repo = "RetreatUI/RetreatUI-Launcher-Releases"
+          $tag = "launcher-v0.3.8"
+          @"
+          ## RetreatUI Launcher 0.3.8
+
+          - Removes blurred edition-card artwork and keeps selected text sharp.
+          - Corrects the Burning Crusade label.
+          - Uses only verified GitHub release assets for Latest on channel.
+          - Compares public feeds with live GitHub releases and rejects stale or invalid entries.
+          - Includes SHA-256 verification assets.
+          "@ | Set-Content -LiteralPath release-notes.md -Encoding utf8
+
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo $repo --title "RetreatUI Launcher v0.3.8" --notes-file release-notes.md
+            gh release upload $tag `
+              "dist/RetreatUI_Launcher.exe" `
+              "dist/RetreatUI_Launcher.exe.sha256" `
+              "dist/RetreatUI_Launcher_win-x64.zip" `
+              --repo $repo --clobber
+          } else {
+            gh release create $tag `
+              "dist/RetreatUI_Launcher.exe" `
+              "dist/RetreatUI_Launcher.exe.sha256" `
+              "dist/RetreatUI_Launcher_win-x64.zip" `
+              --repo $repo `
+              --title "RetreatUI Launcher v0.3.8" `
+              --notes-file release-notes.md
+          }
+
+      - name: Verify public release assets match private 0.3.8
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue
+          Remove-Item Env:GITHUB_TOKEN -ErrorAction SilentlyContinue
+          $repo = "RetreatUI/RetreatUI-Launcher-Releases"
+          $release = gh api "/repos/$repo/releases/tags/launcher-v0.3.8" | ConvertFrom-Json
+          $expected = @{
+            "RetreatUI_Launcher.exe" = 72064586
+            "RetreatUI_Launcher.exe.sha256" = 90
+            "RetreatUI_Launcher_win-x64.zip" = 66592334
+          }
+          foreach ($name in $expected.Keys) {
+            $asset = $release.assets | Where-Object { $_.name -eq $name }
+            if (!$asset) { throw "Missing public asset: $name" }
+            if ([int64]$asset.size -ne [int64]$expected[$name]) { throw "Public size mismatch: $name" }
+            if ($asset.browser_download_url -notlike "https://github.com/RetreatUI/RetreatUI-Launcher-Releases/releases/download/launcher-v0.3.8/*") {
+              throw "Unexpected public URL for $name"
+            }
+          }
+          Write-Host "Public launcher 0.3.8 release assets verified."
