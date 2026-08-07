@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
 
+# Recovery retrigger after GitHub Actions incident resolved on 2026-08-07.
+
 jobs:
   publish:
     runs-on: [self-hosted, Windows, X64]
