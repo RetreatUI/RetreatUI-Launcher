@@ -20,6 +20,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          echo "Refreshing signed asset URLs"
           for spec in \
             "504253279|RetreatUI_Launcher.exe" \
             "504253280|RetreatUI_Launcher.exe.sha256" \
