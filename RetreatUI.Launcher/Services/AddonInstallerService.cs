@@ -5,7 +5,21 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class AddonInstallerService
 {
-    private static readonly string[] ManagedFolders = { "RetreatUI", "RetreatUI_Classes" };
+    private static readonly PackageSpec CoAPackage = new(
+        "Conquest of Azeroth",
+        new[]
+        {
+            new AddonFolderSpec("RetreatUI", "RetreatUI.toc"),
+            new AddonFolderSpec("RetreatUI_Classes", "RetreatUI_Classes.toc")
+        });
+
+    private static readonly PackageSpec TbcPackage = new(
+        "The Burning Crusade",
+        new[]
+        {
+            new AddonFolderSpec("RetreatUI_TBC", "RetreatUI_TBC.toc")
+        });
+
     private const string RollbackTestMarker = ".retreatui-launcher-test-rollback";
 
     public bool IsGameRunning()
@@ -47,8 +61,7 @@ public sealed class AddonInstallerService
             "RetreatUI Launcher",
             "Backups");
         string backupPath = Path.Combine(backupRoot, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"));
-        bool hadExistingInstallation = ManagedFolders.Any(folder =>
-            Directory.Exists(Path.Combine(addOnsPath, folder)));
+        bool hadExistingInstallation = false;
         bool installationStarted = false;
 
         Directory.CreateDirectory(extractPath);
@@ -59,24 +72,26 @@ public sealed class AddonInstallerService
             ZipFile.ExtractToDirectory(zipPath, extractPath, overwriteFiles: true);
             cancellationToken.ThrowIfCancellationRequested();
 
-            string sourceRoot = FindSourceRoot(extractPath)
-                                ?? throw new InvalidDataException(
-                                    "The archive does not contain RetreatUI and RetreatUI_Classes folders.");
+            (PackageSpec package, string sourceRoot) = FindPackage(extractPath)
+                ?? throw new InvalidDataException(
+                    "The archive does not contain a supported RetreatUI addon package.");
 
-            ValidateAddonFolder(sourceRoot, "RetreatUI", "RetreatUI.toc");
-            ValidateAddonFolder(sourceRoot, "RetreatUI_Classes", "RetreatUI_Classes.toc");
-            ValidateArchiveVersions(sourceRoot, expectedVersion);
+            ValidateAddonFolders(sourceRoot, package);
+            ValidateArchiveVersions(sourceRoot, package, expectedVersion);
+
+            hadExistingInstallation = package.Folders.Any(folder =>
+                Directory.Exists(Path.Combine(addOnsPath, folder.FolderName)));
 
             if (hadExistingInstallation)
             {
                 status?.Report("Creating backup...");
                 Directory.CreateDirectory(backupPath);
-                foreach (string folderName in ManagedFolders)
+                foreach (AddonFolderSpec folder in package.Folders)
                 {
-                    string existing = Path.Combine(addOnsPath, folderName);
+                    string existing = Path.Combine(addOnsPath, folder.FolderName);
                     if (Directory.Exists(existing))
                     {
-                        CopyDirectory(existing, Path.Combine(backupPath, folderName), overwrite: true);
+                        CopyDirectory(existing, Path.Combine(backupPath, folder.FolderName), overwrite: true);
                     }
                 }
             }
@@ -86,13 +101,13 @@ public sealed class AddonInstallerService
                 installationStarted = true;
                 status?.Report(hadExistingInstallation ? "Installing update..." : "Installing RetreatUI...");
 
-                for (int index = 0; index < ManagedFolders.Length; index++)
+                for (int index = 0; index < package.Folders.Length; index++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    string folderName = ManagedFolders[index];
-                    string destination = Path.Combine(addOnsPath, folderName);
+                    AddonFolderSpec folder = package.Folders[index];
+                    string destination = Path.Combine(addOnsPath, folder.FolderName);
                     DeleteDirectory(destination);
-                    CopyDirectory(Path.Combine(sourceRoot, folderName), destination, overwrite: true);
+                    CopyDirectory(Path.Combine(sourceRoot, folder.FolderName), destination, overwrite: true);
 
                     // One-shot development hook used to verify rollback before the public release.
                     string rollbackMarker = Path.Combine(addOnsPath, RollbackTestMarker);
@@ -104,14 +119,14 @@ public sealed class AddonInstallerService
                 }
 
                 status?.Report("Verifying installation...");
-                ValidateInstalledCopy(sourceRoot, addOnsPath, expectedVersion);
+                ValidateInstalledCopy(sourceRoot, addOnsPath, package, expectedVersion);
             }
             catch (Exception installError)
             {
                 status?.Report("Installation failed. Restoring previous version...");
                 try
                 {
-                    RestoreBackup(addOnsPath, hadExistingInstallation ? backupPath : null);
+                    RestoreBackup(addOnsPath, hadExistingInstallation ? backupPath : null, package);
                 }
                 catch (Exception restoreError)
                 {
@@ -159,16 +174,30 @@ public sealed class AddonInstallerService
         }
     }
 
-    private static string? FindSourceRoot(string extractPath)
+    private static (PackageSpec Package, string SourceRoot)? FindPackage(string extractPath)
     {
-        if (ManagedFolders.All(folder => Directory.Exists(Path.Combine(extractPath, folder))))
+        foreach (PackageSpec package in new[] { CoAPackage, TbcPackage })
+        {
+            string? sourceRoot = FindSourceRoot(extractPath, package);
+            if (sourceRoot is not null)
+            {
+                return (package, sourceRoot);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindSourceRoot(string extractPath, PackageSpec package)
+    {
+        if (package.Folders.All(folder => Directory.Exists(Path.Combine(extractPath, folder.FolderName))))
         {
             return extractPath;
         }
 
         foreach (string directory in Directory.EnumerateDirectories(extractPath, "*", SearchOption.AllDirectories))
         {
-            if (ManagedFolders.All(folder => Directory.Exists(Path.Combine(directory, folder))))
+            if (package.Folders.All(folder => Directory.Exists(Path.Combine(directory, folder.FolderName))))
             {
                 return directory;
             }
@@ -177,45 +206,54 @@ public sealed class AddonInstallerService
         return null;
     }
 
-    private static void ValidateAddonFolder(string sourceRoot, string folderName, string tocName)
+    private static void ValidateAddonFolders(string sourceRoot, PackageSpec package)
     {
-        string folder = Path.Combine(sourceRoot, folderName);
-        string toc = Path.Combine(folder, tocName);
-        if (!Directory.Exists(folder) || !File.Exists(toc))
+        foreach (AddonFolderSpec folder in package.Folders)
         {
-            throw new InvalidDataException($"Missing required addon file: {folderName}\\{tocName}");
+            string folderPath = Path.Combine(sourceRoot, folder.FolderName);
+            string toc = Path.Combine(folderPath, folder.TocName);
+            if (!Directory.Exists(folderPath) || !File.Exists(toc))
+            {
+                throw new InvalidDataException(
+                    $"Missing required addon file: {folder.FolderName}\\{folder.TocName}");
+            }
         }
     }
 
-    private static void ValidateArchiveVersions(string sourceRoot, string expectedVersion)
+    private static void ValidateArchiveVersions(string sourceRoot, PackageSpec package, string expectedVersion)
     {
-        string retreatVersion = ReadTocVersion(Path.Combine(sourceRoot, "RetreatUI", "RetreatUI.toc"));
-        string classesVersion = ReadTocVersion(Path.Combine(sourceRoot, "RetreatUI_Classes", "RetreatUI_Classes.toc"));
         string expected = NormalizeVersion(expectedVersion);
+        string[] versions = package.Folders
+            .Select(folder => ReadTocVersion(Path.Combine(sourceRoot, folder.FolderName, folder.TocName)))
+            .ToArray();
 
-        if (!string.Equals(retreatVersion, classesVersion, StringComparison.OrdinalIgnoreCase))
+        if (versions.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 1)
         {
             throw new InvalidDataException(
-                $"The two addon folders use different versions ({retreatVersion} and {classesVersion}).");
+                $"The addon folders in the {package.DisplayName} package use different versions ({string.Join(", ", versions)})." );
         }
 
-        if (!string.Equals(retreatVersion, expected, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(versions[0], expected, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException(
-                $"The downloaded addon version is {retreatVersion}, but release {expected} was expected.");
+                $"The downloaded addon version is {versions[0]}, but release {expected} was expected.");
         }
     }
 
-    private static void ValidateInstalledCopy(string sourceRoot, string addOnsPath, string expectedVersion)
+    private static void ValidateInstalledCopy(
+        string sourceRoot,
+        string addOnsPath,
+        PackageSpec package,
+        string expectedVersion)
     {
-        foreach (string folderName in ManagedFolders)
+        foreach (AddonFolderSpec folder in package.Folders)
         {
-            string source = Path.Combine(sourceRoot, folderName);
-            string destination = Path.Combine(addOnsPath, folderName);
+            string source = Path.Combine(sourceRoot, folder.FolderName);
+            string destination = Path.Combine(addOnsPath, folder.FolderName);
             ValidateDirectoryCopy(source, destination);
         }
 
-        ValidateArchiveVersions(addOnsPath, expectedVersion);
+        ValidateArchiveVersions(addOnsPath, package, expectedVersion);
     }
 
     private static void ValidateDirectoryCopy(string source, string destination)
@@ -261,11 +299,11 @@ public sealed class AddonInstallerService
 
     private static string NormalizeVersion(string version) => version.Trim().TrimStart('v', 'V');
 
-    private static void RestoreBackup(string addOnsPath, string? backupPath)
+    private static void RestoreBackup(string addOnsPath, string? backupPath, PackageSpec package)
     {
-        foreach (string folderName in ManagedFolders)
+        foreach (AddonFolderSpec folder in package.Folders)
         {
-            DeleteDirectory(Path.Combine(addOnsPath, folderName));
+            DeleteDirectory(Path.Combine(addOnsPath, folder.FolderName));
         }
 
         if (string.IsNullOrWhiteSpace(backupPath) || !Directory.Exists(backupPath))
@@ -273,12 +311,12 @@ public sealed class AddonInstallerService
             return;
         }
 
-        foreach (string folderName in ManagedFolders)
+        foreach (AddonFolderSpec folder in package.Folders)
         {
-            string source = Path.Combine(backupPath, folderName);
+            string source = Path.Combine(backupPath, folder.FolderName);
             if (Directory.Exists(source))
             {
-                CopyDirectory(source, Path.Combine(addOnsPath, folderName), overwrite: true);
+                CopyDirectory(source, Path.Combine(addOnsPath, folder.FolderName), overwrite: true);
             }
         }
     }
@@ -351,6 +389,9 @@ public sealed class AddonInstallerService
             // Best-effort cleanup only.
         }
     }
+
+    private sealed record PackageSpec(string DisplayName, AddonFolderSpec[] Folders);
+    private sealed record AddonFolderSpec(string FolderName, string TocName);
 }
 
 public sealed record InstallResult(
