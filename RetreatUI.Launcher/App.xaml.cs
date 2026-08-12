@@ -20,9 +20,11 @@ public partial class App : Application
 
         try
         {
-            MainWindow = new MainWindow();
-            MainWindow.SourceInitialized += (_, _) => ApplyDarkTitleBar(MainWindow);
-            MainWindow.Show();
+            MainWindow mainWindow = new();
+            BuffManagerLauncherIntegration.Attach(mainWindow);
+            MainWindow = mainWindow;
+            mainWindow.SourceInitialized += (_, _) => ApplyDarkTitleBar(mainWindow);
+            mainWindow.Show();
         }
         catch (Exception ex)
         {
