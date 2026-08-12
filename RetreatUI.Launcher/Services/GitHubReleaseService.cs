@@ -12,7 +12,9 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class GitHubReleaseService
 {
-    private const string ReleaseFeedUrl =
+    private const string PrimaryReleaseFeedUrl =
+        "https://pub-1f3b72d79f1d4138945f7bd13e131def.r2.dev/feed/addon-releases.json";
+    private const string LegacyReleaseFeedUrl =
         "https://raw.githubusercontent.com/RetreatUI/RetreatUI-Launcher-Releases/main/feed/addon-releases.json";
     private const string CoAApiReleasesUrl =
         "https://api.github.com/repos/RetreatUI/RetreatUI-Addon/releases?per_page=100";
@@ -20,6 +22,8 @@ public sealed class GitHubReleaseService
         "https://api.github.com/repos/RetreatUI/RetreatUI-TBC/releases?per_page=100";
     private const string PackageApiReleasesUrl =
         "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher-Releases/releases?per_page=100";
+    private const string CloudflareR2Host =
+        "pub-1f3b72d79f1d4138945f7bd13e131def.r2.dev";
 
     private static readonly string[] TbcAssetPrefixes =
     {
@@ -66,7 +70,7 @@ public sealed class GitHubReleaseService
 
     public async Task DownloadAssetAsync(GitHubAsset asset, string destinationPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
-        if (!IsVerifiedReleaseAsset(asset)) throw new InvalidOperationException("The selected package is not a verified GitHub release asset.");
+        if (!IsVerifiedReleaseAsset(asset)) throw new InvalidOperationException("The selected package is not a verified RetreatUI release asset.");
         using HttpResponseMessage response = await _httpClient.GetAsync(asset.BrowserDownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         long? total = response.Content.Headers.ContentLength;
@@ -86,32 +90,38 @@ public sealed class GitHubReleaseService
 
     private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
     {
-        Task<List<GitHubRelease>?> feedTask = TryLoadFeedAsync(cancellationToken);
+        Task<List<GitHubRelease>?> primaryFeedTask = TryLoadFeedAsync(PrimaryReleaseFeedUrl, cancellationToken);
+        Task<List<GitHubRelease>?> legacyFeedTask = TryLoadFeedAsync(LegacyReleaseFeedUrl, cancellationToken);
         Task<List<GitHubRelease>?> coaTask = TryLoadApiAsync(CoAApiReleasesUrl, cancellationToken);
         Task<List<GitHubRelease>?> tbcTask = TryLoadApiAsync(TbcApiReleasesUrl, cancellationToken);
         Task<List<GitHubRelease>?> packageTask = TryLoadApiAsync(PackageApiReleasesUrl, cancellationToken);
-        await Task.WhenAll(feedTask, coaTask, tbcTask, packageTask);
+        await Task.WhenAll(primaryFeedTask, legacyFeedTask, coaTask, tbcTask, packageTask);
 
-        List<GitHubRelease>? feedReleases = await feedTask;
+        List<GitHubRelease>? primaryFeedReleases = await primaryFeedTask;
+        List<GitHubRelease>? legacyFeedReleases = await legacyFeedTask;
         List<GitHubRelease>? coaReleases = await coaTask;
         List<GitHubRelease>? tbcReleases = await tbcTask;
         List<GitHubRelease>? packageReleases = await packageTask;
-        if (feedReleases is null && coaReleases is null && tbcReleases is null && packageReleases is null)
+        if (primaryFeedReleases is null && legacyFeedReleases is null && coaReleases is null && tbcReleases is null && packageReleases is null)
             throw new HttpRequestException("All RetreatUI release sources were unavailable.");
 
         Dictionary<string, GitHubRelease> merged = new(StringComparer.OrdinalIgnoreCase);
-        AddReleases(merged, feedReleases);
+
+        // GitHub remains a fallback. The R2 feed is added last so a matching
+        // release from our primary distribution source wins deterministically.
         AddReleases(merged, coaReleases);
         AddReleases(merged, tbcReleases);
         AddReleases(merged, packageReleases);
+        AddReleases(merged, legacyFeedReleases);
+        AddReleases(merged, primaryFeedReleases);
         return merged.Values.ToList();
     }
 
-    private async Task<List<GitHubRelease>?> TryLoadFeedAsync(CancellationToken cancellationToken)
+    private async Task<List<GitHubRelease>?> TryLoadFeedAsync(string url, CancellationToken cancellationToken)
     {
         try
         {
-            string feedUrl = $"{ReleaseFeedUrl}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            string feedUrl = $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
             using HttpRequestMessage request = new(HttpMethod.Get, feedUrl);
             request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
             using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -170,8 +180,12 @@ public sealed class GitHubReleaseService
     {
         if (asset is null || asset.Size <= 0 || string.IsNullOrWhiteSpace(asset.Name) || string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl)) return false;
         if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? uri)
-            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)) return false;
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (string.Equals(uri.Host, CloudflareR2Host, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase)) return false;
         return uri.AbsolutePath.Contains("/releases/download/", StringComparison.OrdinalIgnoreCase)
                && !uri.AbsolutePath.Contains("/archive/", StringComparison.OrdinalIgnoreCase);
     }
