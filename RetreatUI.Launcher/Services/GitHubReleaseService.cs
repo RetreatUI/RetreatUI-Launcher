@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,8 +36,9 @@ public sealed class GitHubReleaseService
 
     public GitHubReleaseService()
     {
+        string launcherVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.3.11";
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetreatUI-Launcher", "0.3.9"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RetreatUI-Launcher", launcherVersion));
     }
 
     public async Task<GitHubRelease?> GetLatestReleaseAsync(GameEdition edition, bool includeBeta, CancellationToken cancellationToken = default)
