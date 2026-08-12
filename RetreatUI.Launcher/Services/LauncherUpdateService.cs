@@ -9,8 +9,12 @@ namespace RetreatUI.Launcher.Services;
 
 public sealed class LauncherUpdateService
 {
-    private const string ApiReleasesUrl =
+    private const string PrimaryReleaseFeedUrl =
+        "https://pub-1f3b72d79f1d4138945f7bd13e131def.r2.dev/feed/launcher-releases.json";
+    private const string FallbackApiReleasesUrl =
         "https://api.github.com/repos/RetreatUI/RetreatUI-Launcher/releases?per_page=30";
+    private const string CloudflareR2Host =
+        "pub-1f3b72d79f1d4138945f7bd13e131def.r2.dev";
     private const string ExecutableAssetName = "RetreatUI_Launcher.exe";
     private const string ChecksumAssetName = "RetreatUI_Launcher.exe.sha256";
 
@@ -87,7 +91,7 @@ public sealed class LauncherUpdateService
             || !IsVerifiedLauncherAsset(update.ChecksumAsset))
         {
             throw new InvalidOperationException(
-                "The selected launcher update is not backed by verified GitHub release assets.");
+                "The selected launcher update is not backed by a verified RetreatUI release source.");
         }
 
         string currentExecutable = Environment.ProcessPath
@@ -192,9 +196,51 @@ public sealed class LauncherUpdateService
 
     private async Task<List<GitHubRelease>> LoadReleasesAsync(CancellationToken cancellationToken)
     {
+        Task<List<GitHubRelease>?> primaryTask = TryLoadFeedAsync(PrimaryReleaseFeedUrl, cancellationToken);
+        Task<List<GitHubRelease>?> fallbackTask = TryLoadApiAsync(FallbackApiReleasesUrl, cancellationToken);
+        await Task.WhenAll(primaryTask, fallbackTask);
+
+        List<GitHubRelease>? primaryReleases = await primaryTask;
+        List<GitHubRelease>? fallbackReleases = await fallbackTask;
+        if (primaryReleases is null && fallbackReleases is null)
+        {
+            throw new HttpRequestException("All RetreatUI launcher release sources were unavailable.");
+        }
+
+        Dictionary<string, GitHubRelease> merged = new(StringComparer.OrdinalIgnoreCase);
+        AddReleases(merged, fallbackReleases);
+        AddReleases(merged, primaryReleases);
+        return merged.Values.ToList();
+    }
+
+    private async Task<List<GitHubRelease>?> TryLoadFeedAsync(string url, CancellationToken cancellationToken)
+    {
         try
         {
-            using HttpRequestMessage request = new(HttpMethod.Get, ApiReleasesUrl);
+            string feedUrl = $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            using HttpRequestMessage request = new(HttpMethod.Get, feedUrl);
+            request.Headers.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await DeserializeReleasesAsync(response, cancellationToken);
+        }
+        catch (HttpRequestException) { return null; }
+        catch (JsonException) { return null; }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return null; }
+    }
+
+    private async Task<List<GitHubRelease>?> TryLoadApiAsync(string url, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpRequestMessage request = new(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             request.Headers.CacheControl = new CacheControlHeaderValue
             {
@@ -208,9 +254,18 @@ public sealed class LauncherUpdateService
             response.EnsureSuccessStatusCode();
             return await DeserializeReleasesAsync(response, cancellationToken);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (HttpRequestException) { return null; }
+        catch (JsonException) { return null; }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return null; }
+    }
+
+    private static void AddReleases(IDictionary<string, GitHubRelease> target, IEnumerable<GitHubRelease>? releases)
+    {
+        if (releases is null) return;
+        foreach (GitHubRelease release in releases)
         {
-            throw new HttpRequestException("The launcher update request timed out.");
+            if (string.IsNullOrWhiteSpace(release.TagName)) continue;
+            target[release.TagName] = release;
         }
     }
 
@@ -274,8 +329,17 @@ public sealed class LauncherUpdateService
         }
 
         if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? uri)
-            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(uri.Host, CloudflareR2Host, StringComparison.OrdinalIgnoreCase))
+        {
+            return uri.AbsolutePath.StartsWith("/launcher/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
