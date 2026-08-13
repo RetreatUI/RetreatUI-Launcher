@@ -32,6 +32,8 @@ public sealed class GitHubReleaseService
         "RetreatUI-TBC-v"
     };
 
+    private const string BuffManagerAssetPrefix = "RetreatUI_BuffManager_v";
+
     private readonly HttpClient _httpClient;
 
     public GitHubReleaseService()
@@ -56,6 +58,12 @@ public sealed class GitHubReleaseService
     public static GitHubAsset? FindRetreatUiAsset(GitHubRelease release, GameEdition edition) =>
         release.Assets.FirstOrDefault(asset => IsCompatibleAsset(asset, edition));
 
+    public static GitHubAsset? FindBuffManagerAsset(GitHubRelease release) =>
+        release.Assets.FirstOrDefault(asset =>
+            IsVerifiedReleaseAsset(asset)
+            && asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            && asset.Name.StartsWith(BuffManagerAssetPrefix, StringComparison.OrdinalIgnoreCase));
+
     public static string GetAssetVersion(GitHubRelease release, GameEdition edition)
     {
         GitHubAsset? asset = FindRetreatUiAsset(release, edition);
@@ -68,6 +76,16 @@ public sealed class GitHubReleaseService
                 if (fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return NormalizeVersion(fileName[prefix.Length..]);
         }
         return NormalizeVersion(release.TagName);
+    }
+
+    public static string GetBuffManagerAssetVersion(GitHubRelease release)
+    {
+        GitHubAsset? asset = FindBuffManagerAsset(release);
+        if (asset is null) return string.Empty;
+        string fileName = Path.GetFileNameWithoutExtension(asset.Name);
+        return fileName.StartsWith(BuffManagerAssetPrefix, StringComparison.OrdinalIgnoreCase)
+            ? NormalizeVersion(fileName[BuffManagerAssetPrefix.Length..])
+            : string.Empty;
     }
 
     public async Task DownloadAssetAsync(GitHubAsset asset, string destinationPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
@@ -175,7 +193,9 @@ public sealed class GitHubReleaseService
         if (!IsVerifiedReleaseAsset(asset) || !asset.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) return false;
         if (edition == GameEdition.Tbc)
             return TbcAssetPrefixes.Any(prefix => asset.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-        return asset.Name.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase) && !asset.Name.Contains("TBC", StringComparison.OrdinalIgnoreCase);
+        return asset.Name.StartsWith("RetreatUI_v", StringComparison.OrdinalIgnoreCase)
+               && !asset.Name.Contains("TBC", StringComparison.OrdinalIgnoreCase)
+               && !asset.Name.StartsWith(BuffManagerAssetPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsVerifiedReleaseAsset(GitHubAsset asset)
