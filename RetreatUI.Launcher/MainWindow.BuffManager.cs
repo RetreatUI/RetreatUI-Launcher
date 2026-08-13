@@ -6,11 +6,29 @@ namespace RetreatUI.Launcher;
 
 public partial class MainWindow
 {
+    // MainWindow.VisualPolish.cs already owns the type's static constructor.
+    // A static field initializer can register an additional class-level Loaded
+    // handler without coupling the independent Buff Manager flow to that file.
+    private static readonly bool BuffManagerLoadedHookRegistered = RegisterBuffManagerLoadedHook();
+
     private Button? _buffManagerButton;
     private GitHubRelease? _latestBuffManagerRelease;
     private GitHubAsset? _latestBuffManagerAsset;
     private string _latestBuffManagerVersion = string.Empty;
     private int _buffManagerRefreshGeneration;
+
+    private static bool RegisterBuffManagerLoadedHook()
+    {
+        EventManager.RegisterClassHandler(typeof(MainWindow), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler(OnBuffManagerWindowLoaded), handledEventsToo: true);
+        return true;
+    }
+
+    private static void OnBuffManagerWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is MainWindow window && ReferenceEquals(e.OriginalSource, window))
+            window.InitializeBuffManagerControls();
+    }
 
     private void InitializeBuffManagerControls()
     {
