@@ -6,15 +6,22 @@ namespace RetreatUI.Launcher.Services;
 public sealed class AddonInstallerService
 {
     private static readonly PackageSpec CoAPackage = new(
-        "Conquest of Azeroth",
+        "RetreatUI",
         new[]
         {
             new AddonFolderSpec("RetreatUI", "RetreatUI.toc"),
             new AddonFolderSpec("RetreatUI_Classes", "RetreatUI_Classes.toc")
         });
 
+    private static readonly PackageSpec BuffManagerPackage = new(
+        "RetreatUI Buff Manager",
+        new[]
+        {
+            new AddonFolderSpec("RetreatUI_BuffManager", "RetreatUI_BuffManager.toc")
+        });
+
     private static readonly PackageSpec TbcPackage = new(
-        "The Burning Crusade",
+        "RetreatUI",
         new[]
         {
             new AddonFolderSpec("RetreatUI", "RetreatUI.toc")
@@ -44,6 +51,7 @@ public sealed class AddonInstallerService
         string backupPath = Path.Combine(backupRoot, DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"));
         bool hadExistingInstallation = false;
         bool installationStarted = false;
+        string packageName = "RetreatUI";
         Directory.CreateDirectory(extractPath);
         try
         {
@@ -51,12 +59,13 @@ public sealed class AddonInstallerService
             ZipFile.ExtractToDirectory(zipPath, extractPath, overwriteFiles: true);
             cancellationToken.ThrowIfCancellationRequested();
             (PackageSpec package, string sourceRoot) = FindPackage(extractPath) ?? throw new InvalidDataException("The archive does not contain a supported RetreatUI addon package.");
+            packageName = package.DisplayName;
             ValidateAddonFolders(sourceRoot, package);
             ValidateArchiveVersions(sourceRoot, package, expectedVersion);
             hadExistingInstallation = package.Folders.Any(folder => Directory.Exists(Path.Combine(addOnsPath, folder.FolderName)));
             if (hadExistingInstallation)
             {
-                status?.Report("Creating backup...");
+                status?.Report($"Creating {packageName} backup...");
                 Directory.CreateDirectory(backupPath);
                 foreach (AddonFolderSpec folder in package.Folders)
                 {
@@ -67,7 +76,7 @@ public sealed class AddonInstallerService
             try
             {
                 installationStarted = true;
-                status?.Report(hadExistingInstallation ? "Installing update..." : "Installing RetreatUI...");
+                status?.Report(hadExistingInstallation ? $"Updating {packageName}..." : $"Installing {packageName}...");
                 for (int index = 0; index < package.Folders.Length; index++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -78,18 +87,18 @@ public sealed class AddonInstallerService
                     string rollbackMarker = Path.Combine(addOnsPath, RollbackTestMarker);
                     if (index == 0 && File.Exists(rollbackMarker)) { File.Delete(rollbackMarker); throw new IOException("Rollback test requested."); }
                 }
-                status?.Report("Verifying installation...");
+                status?.Report($"Verifying {packageName} installation...");
                 ValidateInstalledCopy(sourceRoot, addOnsPath, package, expectedVersion);
             }
             catch (Exception installError)
             {
-                status?.Report("Installation failed. Restoring previous version...");
+                status?.Report($"{packageName} installation failed. Restoring previous version...");
                 try { RestoreBackup(addOnsPath, hadExistingInstallation ? backupPath : null, package); }
                 catch (Exception restoreError) { throw new IOException($"The update failed and the previous installation could not be fully restored. Update error: {installError.Message} Restore error: {restoreError.Message}", restoreError); }
-                string recoveryMessage = hadExistingInstallation ? "The previous RetreatUI installation was restored successfully." : "The partial installation was removed successfully.";
+                string recoveryMessage = hadExistingInstallation ? $"The previous {packageName} installation was restored successfully." : "The partial installation was removed successfully.";
                 throw new IOException($"The installation failed. {recoveryMessage} Details: {installError.Message}", installError);
             }
-            status?.Report(hadExistingInstallation ? "Update installed successfully." : "RetreatUI installed successfully.");
+            status?.Report(hadExistingInstallation ? $"{packageName} updated successfully." : $"{packageName} installed successfully.");
             if (hadExistingInstallation) CleanupOldBackups(backupRoot, keep: 5);
             await Task.CompletedTask;
             return new InstallResult(true, hadExistingInstallation ? backupPath : null, null, hadExistingInstallation, false);
@@ -103,7 +112,9 @@ public sealed class AddonInstallerService
 
     private static (PackageSpec Package, string SourceRoot)? FindPackage(string extractPath)
     {
-        foreach (PackageSpec package in new[] { CoAPackage, TbcPackage })
+        // CoA core is checked before the one-folder TBC package so a CoA archive
+        // is never misidentified. Buff Manager has its own independent archive.
+        foreach (PackageSpec package in new[] { CoAPackage, BuffManagerPackage, TbcPackage })
         {
             string? sourceRoot = FindSourceRoot(extractPath, package);
             if (sourceRoot is not null) return (package, sourceRoot);
