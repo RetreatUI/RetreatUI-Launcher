@@ -90,23 +90,24 @@ public sealed class GamePathService
 
         foreach (string tocPath in tocPaths)
         {
-            if (!File.Exists(tocPath))
-            {
-                continue;
-            }
-
-            foreach (string line in File.ReadLines(tocPath))
-            {
-                if (line.StartsWith("## Version:", StringComparison.OrdinalIgnoreCase))
-                {
-                    return line[(line.IndexOf(':') + 1)..].Trim().TrimStart('v', 'V');
-                }
-            }
+            string? version = ReadTocVersion(tocPath);
+            if (version is not null) return version;
         }
 
         return ManagedAddonFolders.Any(folder => Directory.Exists(Path.Combine(addOnsPath, folder)))
             ? "Unknown"
             : "Not installed";
+    }
+
+    public string ReadInstalledBuffManagerVersion(string addOnsPath)
+    {
+        if (!HasValidAddOnsPath(addOnsPath)) return "Unknown";
+
+        string folder = Path.Combine(addOnsPath, "RetreatUI_BuffManager");
+        string tocPath = Path.Combine(folder, "RetreatUI_BuffManager.toc");
+        string? version = ReadTocVersion(tocPath);
+        if (version is not null) return version;
+        return Directory.Exists(folder) ? "Unknown" : "Not installed";
     }
 
     public string? FindGameExecutable(string addOnsPath, GameEdition edition)
@@ -130,6 +131,17 @@ public sealed class GamePathService
         }
 
         return null;
+    }
+
+    private static string? ReadTocVersion(string tocPath)
+    {
+        if (!File.Exists(tocPath)) return null;
+        foreach (string line in File.ReadLines(tocPath))
+        {
+            if (line.StartsWith("## Version:", StringComparison.OrdinalIgnoreCase))
+                return line[(line.IndexOf(':') + 1)..].Trim().TrimStart('v', 'V');
+        }
+        return "Unknown";
     }
 
     private static IEnumerable<string> GetKnownCandidates(GameEdition edition)
